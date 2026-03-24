@@ -141,6 +141,33 @@ describe("article dedup", () => {
     expect(isArticleCoherent(article)).toBe(false)
   })
 
+  it("rejects any article that includes Infobae Colombia as a source", () => {
+    const article = makeArticle({
+      title: "Tema aparentemente coherente",
+      summary: "Resumen",
+      sources: [
+        {
+          id: "1",
+          name: "Infobae",
+          url: "https://www.infobae.com/colombia/2026/03/24/tema-importante/",
+          publishedAt: "",
+          title: "Título desde Infobae Colombia",
+          snippet: "Cobertura de la edición colombiana de Infobae.",
+        },
+        {
+          id: "2",
+          name: "Pagina/12",
+          url: "https://www.pagina12.com.ar/2026/03/24/tema-importante/",
+          publishedAt: "",
+          title: "Tema importante en Argentina",
+          snippet: "Cobertura local del mismo asunto.",
+        },
+      ],
+    })
+
+    expect(isArticleCoherent(article)).toBe(false)
+  })
+
   it("rejects broad mixed sports coverage that only overlaps on Mundial 2026", () => {
     const article = makeArticle({
       title: "La citación de último momento que realizó Lionel Scaloni para los amistosos de la selección argentina de cara al Mundial 2026",

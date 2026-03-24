@@ -1,3 +1,4 @@
+import { isBlockedExternalSource } from "./source-safety"
 import type { ImpartialArticle } from "./types"
 import { coherentCoverageRatio, isStrongTopicMatch } from "./topic-coherence"
 
@@ -71,6 +72,7 @@ export function areArticlesNearDuplicate(left: ImpartialArticle, right: Impartia
 
 export function isArticleCoherent(article: ImpartialArticle): boolean {
   if (article.sources.length < 2) return false
+  if (article.sources.some(isBlockedExternalSource)) return false
 
   const coherentPairs = article.sources.reduce((count, source, index) => {
     for (let nestedIndex = index + 1; nestedIndex < article.sources.length; nestedIndex += 1) {

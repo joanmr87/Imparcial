@@ -1,5 +1,6 @@
 import { getEnabledSources, NEWS_SOURCES, type NewsSource } from "./sources"
 import { inferCategoryFromItem } from "./news-categories"
+import { isBlockedExternalSource } from "./source-safety"
 import { coherentTopicGroups, isStrongTopicMatch } from "./topic-coherence"
 import type { NewsCluster, RSSItem } from "./types"
 
@@ -30,8 +31,6 @@ const NOISE_PATTERNS = [
   /\b(loteria|quiniela|sorteo|resultado sinuano|chance|jackpot|horoscopo)\b/,
   /\b(numeros? ganadores?|premio mayor|apuesta)\b/,
 ]
-
-const INFObAE_FOREIGN_SECTION_PATTERN = /\/(colombia|mexico|peru|america|espana|estados-unidos|usa)\//
 
 function normalizeText(text: string): string {
   return text
@@ -148,7 +147,7 @@ function shouldIgnoreItem(item: RSSItem): boolean {
     return true
   }
 
-  if (item.sourceId === "infobae" && INFObAE_FOREIGN_SECTION_PATTERN.test(item.link)) {
+  if (isBlockedExternalSource(item)) {
     return true
   }
 
