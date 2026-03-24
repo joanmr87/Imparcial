@@ -4,7 +4,8 @@
 export interface NewsSource {
   id: string
   name: string
-  rssUrl: string
+  rssUrl?: string
+  rssUrls?: string[]
   website: string
   priority: 'high' | 'medium' | 'low'
   category?: string
@@ -63,20 +64,57 @@ export const NEWS_SOURCES: NewsSource[] = [
   {
     id: 'infobae',
     name: 'Infobae',
-    rssUrl: 'https://www.infobae.com/feeds/rss/',
+    rssUrl: 'https://www.infobae.com/arc/outboundfeeds/rss/',
     website: 'https://www.infobae.com',
     priority: 'medium',
-    enabled: false,
-    notes: 'Official RSS endpoint returned 404 during verification'
+    enabled: true,
+    notes: 'Official RSS endpoint verified from site footer on 2026-03-24'
   },
   {
     id: 'pagina12',
     name: 'Pagina/12',
-    rssUrl: 'https://www.pagina12.com.ar/rss/portada/',
+    rssUrls: [
+      'https://www.pagina12.com.ar/arc/outboundfeeds/rss/portada/',
+      'https://www.pagina12.com.ar/arc/outboundfeeds/rss/secciones/el-pais/notas',
+      'https://www.pagina12.com.ar/arc/outboundfeeds/rss/secciones/economia/notas',
+      'https://www.pagina12.com.ar/arc/outboundfeeds/rss/secciones/sociedad/notas',
+      'https://www.pagina12.com.ar/arc/outboundfeeds/rss/secciones/deportes/notas',
+    ],
     website: 'https://www.pagina12.com.ar',
     priority: 'medium',
-    enabled: false,
-    notes: 'Previous RSS endpoint returned 404 during verification'
+    enabled: true,
+    notes: 'Official RSS catalog published at pagina12.com.ar/rss/'
+  },
+  {
+    id: 'iprofesional',
+    name: 'iProfesional',
+    rssUrls: [
+      'https://www.iprofesional.com/rss/home',
+      'https://www.iprofesional.com/rss/economia',
+      'https://www.iprofesional.com/rss/politica',
+      'https://www.iprofesional.com/rss/finanzas',
+      'https://www.iprofesional.com/rss/negocios',
+    ],
+    website: 'https://www.iprofesional.com',
+    priority: 'medium',
+    enabled: true,
+    category: 'economia',
+    notes: 'Official RSS endpoints listed at iprofesional.com/rss.html'
+  },
+  {
+    id: 'minutouno',
+    name: 'Minuto Uno',
+    rssUrls: [
+      'https://www.minutouno.com/rss/politica',
+      'https://www.minutouno.com/rss/economia',
+      'https://www.minutouno.com/rss/sociedad',
+      'https://www.minutouno.com/rss/deportes',
+      'https://www.minutouno.com/rss/mundo',
+    ],
+    website: 'https://www.minutouno.com',
+    priority: 'medium',
+    enabled: true,
+    notes: 'Official RSS section endpoints linked from minutouno.com/rss'
   },
   // Low priority - add carefully because some feeds challenge bots
   {
@@ -87,25 +125,6 @@ export const NEWS_SOURCES: NewsSource[] = [
     priority: 'low',
     enabled: false,
     notes: 'Cloudflare challenge blocks automated retrieval'
-  },
-  {
-    id: 'iprofesional',
-    name: 'iProfesional',
-    rssUrl: 'https://www.iprofesional.com/rss',
-    website: 'https://www.iprofesional.com',
-    priority: 'low',
-    enabled: false,
-    category: 'economia',
-    notes: 'RSS endpoint now responds with HTML instead of XML'
-  },
-  {
-    id: 'a24',
-    name: 'A24',
-    rssUrl: 'https://www.a24.com/rss',
-    website: 'https://www.a24.com',
-    priority: 'low',
-    enabled: false,
-    notes: 'Current endpoint returned 404 during verification'
   },
   {
     id: 'regional-placeholder',
@@ -127,7 +146,10 @@ export function getMediumPrioritySources(): NewsSource[] {
 }
 
 export function getEnabledSources(): NewsSource[] {
-  return NEWS_SOURCES.filter(source => source.enabled !== false && source.rssUrl)
+  return NEWS_SOURCES.filter(source => {
+    if (source.enabled === false) return false
+    return Boolean(source.rssUrl) || Boolean(source.rssUrls?.length)
+  })
 }
 
 export function getSourceById(id: string): NewsSource | undefined {

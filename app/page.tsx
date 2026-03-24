@@ -3,7 +3,6 @@ import { ArticleCard } from "@/components/article-card"
 import { ClickbaitBusters } from "@/components/clickbait-busters"
 import { Header } from "@/components/header"
 import { HomepageSectionBlock } from "@/components/homepage-section"
-import { LiveBriefCard } from "@/components/live-brief-card"
 import { Separator } from "@/components/ui/separator"
 import { getClickbaitBusters } from "@/lib/clickbait"
 import { getHomepageEdition } from "@/lib/homepage"
@@ -18,14 +17,12 @@ interface HomePageProps {
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = searchParams ? await searchParams : undefined
   const activeSection = normalizeSectionSlug(params?.seccion)
-  const { articles, topBriefs, sections, warning } = await getHomepageEdition(activeSection)
+  const { articles, sections, warning } = await getHomepageEdition(activeSection)
   const clickbaitBusters = await getClickbaitBusters()
 
   const featured = articles[0]
   const secondary = articles.slice(1, 3)
   const sidebar = articles.slice(3, 8)
-  const secondaryBriefs = topBriefs.slice(0, Math.max(0, 2 - secondary.length))
-  const sidebarBriefs = topBriefs.slice(secondaryBriefs.length, secondaryBriefs.length + Math.max(0, 5 - sidebar.length))
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,9 +74,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               {secondary.map(article => (
                 <ArticleCard key={article.id} article={article} variant="large" />
               ))}
-              {secondaryBriefs.map(brief => (
-                <LiveBriefCard key={brief.id} brief={brief} variant="large" />
-              ))}
             </div>
           </div>
 
@@ -92,9 +86,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               {sidebar.map(article => (
                 <ArticleCard key={article.id} article={article} variant="small" />
               ))}
-              {sidebarBriefs.map(brief => (
-                <LiveBriefCard key={brief.id} brief={brief} variant="small" />
-              ))}
             </div>
           </aside>
         </div>
@@ -105,7 +96,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Sobre Diario Imparcial
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Cada nota propia cruza varias coberturas del mismo hecho y después ordena qué está confirmado, qué queda atribuido y en qué difieren los medios. Cuando todavía no hay suficiente material para una nota imparcial cerrada, la portada igual se completa con un radar vivo por secciones para que el diario nunca se sienta vacío.
+              Cada nota propia cruza varias coberturas del mismo hecho y después ordena qué está confirmado, qué queda atribuido y en qué difieren los medios. El sitio ya no deriva a notas ajenas: la idea es que todo lo que leas acá sea parte de una edición propia de El Imparcial.
             </p>
             <div className="mt-6 flex items-center justify-center gap-8 text-xs text-muted-foreground">
               <div>
@@ -158,7 +149,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 <li>1. Leemos varios diarios varias veces por día.</li>
                 <li>2. Detectamos temas repetidos entre al menos dos medios.</li>
                 <li>3. La IA transforma ese cruce en una nota nueva y trazable.</li>
-                <li>4. La portada suma radar en vivo por sección para no dejar huecos.</li>
+                <li>4. La portada muestra solo notas propias, nunca links que te saquen del diario.</li>
               </ol>
               <Link
                 href="/metodologia"

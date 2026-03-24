@@ -243,12 +243,21 @@ function rankKeywords(cluster: MutableCluster): string[] {
     .map(([token]) => token)
 }
 
-export async function fetchRSSFeed(source: NewsSource): Promise<FetchResult> {
+function getFeedUrls(source: NewsSource): string[] {
+  const urls = [
+    source.rssUrl,
+    ...(source.rssUrls || []),
+  ].filter((value): value is string => Boolean(value))
+
+  return [...new Set(urls)]
+}
+
+async function fetchFeedUrl(source: NewsSource, url: string): Promise<RSSItem[]> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
   try {
-    const response = await fetch(source.rssUrl, {
+    const response = await fetch(url, {
       cache: "no-store",
       signal: controller.signal,
       headers: {
@@ -258,33 +267,41 @@ export async function fetchRSSFeed(source: NewsSource): Promise<FetchResult> {
     })
 
     if (!response.ok) {
-      return {
-        source,
-        items: [],
-        error: `HTTP ${response.status}: ${response.statusText}`,
-      }
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
     const xml = await response.text()
     const items = dedupeItems(parseRSSXML(xml, source)).slice(0, MAX_ITEMS_PER_SOURCE)
 
     if (items.length === 0) {
-      return {
-        source,
-        items: [],
-        error: "Feed responded but no RSS items were parsed",
-      }
+      throw new Error("Feed responded but no RSS items were parsed")
     }
 
-    return { source, items }
-  } catch (error) {
-    return {
-      source,
-      items: [],
-      error: error instanceof Error ? error.message : "Unknown error",
-    }
+    return items
   } finally {
     clearTimeout(timeout)
+  }
+}
+
+export async function fetchRSSFeed(source: NewsSource): Promise<FetchResult> {
+  const feedUrls = getFeedUrls(source)
+
+  const results = await Promise.allSettled(feedUrls.map(url => fetchFeedUrl(source, url)))
+  const items = dedupeItems(
+    results.flatMap(result => result.status === "fulfilled" ? result.value : [])
+  ).slice(0, MAX_ITEMS_PER_SOURCE * Math.max(1, feedUrls.length))
+
+  const errors = results
+    .flatMap((result, index) => {
+      if (result.status === "fulfilled") return []
+      const message = result.reason instanceof Error ? result.reason.message : "Unknown error"
+      return [`${feedUrls[index]}: ${message}`]
+    })
+
+  return {
+    source,
+    items,
+    error: items.length === 0 && errors.length > 0 ? errors.join(" | ") : undefined,
   }
 }
 
