@@ -1,4 +1,5 @@
 import { generateImpartialArticle } from "./editorial"
+import { rankClustersByRelevance } from "./news-ranking"
 import { clusterNews, fetchAllFeeds } from "./rss-fetcher"
 import { getEditorialSchemaStatus, upsertGeneratedArticle } from "./supabase-admin"
 import type { ImpartialArticle, NewsCluster, PipelineWarning } from "./types"
@@ -25,9 +26,10 @@ export async function collectLatestClusters(options: CollectClustersOptions = {}
       message: `${result.source.name}: ${result.error}`,
     }))
 
-  const clusters = clusterNews(allItems)
+  const baseClusters = clusterNews(allItems)
     .filter(cluster => cluster.sourcesCount >= minSources)
-    .slice(0, limit)
+    .slice(0, Math.max(limit * 2, 16))
+  const clusters = (await rankClustersByRelevance(baseClusters)).slice(0, limit)
 
   return {
     timestamp: new Date().toISOString(),

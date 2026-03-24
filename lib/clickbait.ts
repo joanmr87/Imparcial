@@ -20,6 +20,8 @@ const clickbaitSelectionSchema = z.object({
       id: z.string(),
       include: z.boolean().describe("Si el titulo merece entrar en la seccion"),
       answer: z.string().describe("Respuesta concreta y util para el lector"),
+      importanceScore: z.number().min(1).max(10),
+      clickbaitScore: z.number().min(1).max(10),
     })
   ),
 })
@@ -138,38 +140,50 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
         "La respuesta puede ser una palabra, una cifra, un nombre propio o una frase corta de una sola oracion.",
         "No inventes datos. Si la descripcion no alcanza para responder con certeza, include=false.",
         "No uses formulas como 'No lo dice claro'. Si no se puede responder bien, no lo incluyas.",
-        "Responde en espanol de Argentina, con tono seco y claro.",
+        "Responde en espanol de Argentina, con tono seco, claro y un poco picante cuando sirva, pero sin hacerse el gracioso porque si.",
         "Si un titular es apenas largo pero no es verdaderamente clickbait, dejalo afuera.",
+        "Da importanceScore segun interes general para una audiencia argentina y clickbaitScore segun cuan cebado este el titular.",
       ].join(" "),
       prompt,
     })
 
-    const answersById = new Map(
-      object.items
-        .filter(item => item.include)
-        .map(item => [item.id, truncateAnswer(item.answer)])
-        .filter((entry): entry is [string, string] => Boolean(entry[1]))
-    )
+    const answersById = new Map<string, { answer: string; totalScore: number }>()
 
-    const selectedItems: ClickbaitBusterItem[] = []
+    for (const item of object.items) {
+      if (!item.include) continue
 
-    for (const [index, item] of candidates.entries()) {
-        const id = `${item.sourceId}:${index}`
-        const answer = answersById.get(id)
+      const answer = truncateAnswer(item.answer)
+      if (!answer) continue
 
-        if (!answer) continue
-
-        selectedItems.push({
-          id: `${item.sourceId}:${item.link}`,
-          title: item.title,
-          answer,
-          source: item.source,
-          url: item.link,
-          imageUrl: item.imageUrl,
-        })
+      answersById.set(item.id, {
+        answer,
+        totalScore: item.importanceScore * 2 + item.clickbaitScore,
+      })
     }
 
-    return selectedItems.slice(0, 6)
+    const selectedItems: Array<ClickbaitBusterItem & { totalScore: number }> = []
+
+    for (const [index, item] of candidates.entries()) {
+      const id = `${item.sourceId}:${index}`
+      const ranked = answersById.get(id)
+
+      if (!ranked) continue
+
+      selectedItems.push({
+        id: `${item.sourceId}:${item.link}`,
+        title: item.title,
+        answer: ranked.answer,
+        source: item.source,
+        url: item.link,
+        imageUrl: item.imageUrl,
+        totalScore: ranked.totalScore,
+      })
+    }
+
+    return selectedItems
+      .sort((left, right) => right.totalScore - left.totalScore)
+      .slice(0, 6)
+      .map(({ totalScore: _totalScore, ...item }) => item)
   } catch {
     return []
   }

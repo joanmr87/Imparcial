@@ -50,10 +50,12 @@ Reglas obligatorias:
 - El resumen debe poder publicarse tal cual en portada.
 - Usa categorias periodisticas habituales en Argentina.
 - La lectura debe sentirse clara, ordenada y humana, no como un acta tecnica.
+- Escribe para lectores argentinos que quieren entender rapido que paso, sin jerga innecesaria ni vueltas.
 - Abre con 3 a 6 parrafos cortos que expliquen rapidamente que paso, quien intervino y por que importa hoy.
 - Evita repetir formulas como "segun" al inicio de todas las oraciones; alterna estructuras pero manteniendo la atribucion cuando haga falta.
 - Si una fuente aporta contexto y otra aporta el hecho puntual, integralos sin perder trazabilidad.
 - No conviertas toda la nota en listas: usa listas solo para hechos confirmados y discrepancias.
+- Si el tema afecta bolsillo, servicios, politica, seguridad, trabajo o vida cotidiana, deja claro por que importa en Argentina.
 `
 
 function generateSlug(title: string): string {
