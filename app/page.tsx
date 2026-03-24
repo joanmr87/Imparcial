@@ -1,10 +1,9 @@
 import Link from "next/link"
 import { ArticleCard } from "@/components/article-card"
-import { ClickbaitBusters } from "@/components/clickbait-busters"
+import { ClickbaitBustersSection } from "@/components/clickbait-busters-section"
 import { Header } from "@/components/header"
 import { HomepageSectionBlock } from "@/components/homepage-section"
 import { Separator } from "@/components/ui/separator"
-import { getClickbaitBusters } from "@/lib/clickbait"
 import { getHomepageEdition } from "@/lib/homepage"
 import { normalizeSectionSlug } from "@/lib/news-categories"
 
@@ -18,7 +17,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const params = searchParams ? await searchParams : undefined
   const activeSection = normalizeSectionSlug(params?.seccion)
   const { articles, sections, warning } = await getHomepageEdition(activeSection)
-  const clickbaitBusters = await getClickbaitBusters()
 
   const featured = articles[0]
   const secondary = articles.slice(1, 3)
@@ -161,7 +159,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
         </section>
 
-        <ClickbaitBusters items={clickbaitBusters} />
+        <ClickbaitBustersSection />
       </main>
 
       <footer className="border-t border-border">
