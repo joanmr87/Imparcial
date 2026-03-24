@@ -4,6 +4,12 @@ interface ClickbaitBustersProps {
   items: ClickbaitBusterItem[]
 }
 
+function answerClassName(answer: string): string {
+  if (answer.length > 90) return "text-sm font-medium leading-snug md:text-base"
+  if (answer.length > 55) return "text-base font-semibold leading-snug md:text-lg"
+  return "text-2xl font-semibold leading-tight"
+}
+
 export function ClickbaitBusters({ items }: ClickbaitBustersProps) {
   if (items.length === 0) return null
 
@@ -63,7 +69,7 @@ export function ClickbaitBusters({ items }: ClickbaitBustersProps) {
                 <p className="text-[11px] tracking-[0.18em] text-stone-400 uppercase">
                   Lo que querías saber
                 </p>
-                <p className="mt-2 line-clamp-2 text-2xl font-semibold leading-tight text-pretty">
+                <p className={`mt-2 line-clamp-4 text-pretty ${answerClassName(item.answer)}`}>
                   {item.answer}
                 </p>
               </div>

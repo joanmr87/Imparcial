@@ -90,6 +90,35 @@ export function dedupeSimilarArticles(articles: ImpartialArticle[]): ImpartialAr
   return deduped
 }
 
+export function pickDistinctArticles(
+  articles: ImpartialArticle[],
+  limit: number,
+  overlapThreshold = 0.42
+): ImpartialArticle[] {
+  const selected: ImpartialArticle[] = []
+
+  for (const article of articles) {
+    const articleTokens = tokenizeArticle(article)
+    const overlapsExisting = selected.some(existing => {
+      const overlap = overlapScore(articleTokens, tokenizeArticle(existing))
+      return overlap >= overlapThreshold
+    })
+
+    if (overlapsExisting) continue
+
+    selected.push(article)
+    if (selected.length >= limit) return selected
+  }
+
+  for (const article of articles) {
+    if (selected.some(existing => existing.id === article.id)) continue
+    selected.push(article)
+    if (selected.length >= limit) break
+  }
+
+  return selected
+}
+
 export function prioritizeArticleVariety(articles: ImpartialArticle[], limit: number): ImpartialArticle[] {
   const selected: ImpartialArticle[] = []
   const categories = new Set<string>()

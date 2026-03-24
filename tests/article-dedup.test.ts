@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { areArticlesNearDuplicate, dedupeSimilarArticles, prioritizeArticleVariety } from "../lib/article-dedup"
+import { areArticlesNearDuplicate, dedupeSimilarArticles, pickDistinctArticles, prioritizeArticleVariety } from "../lib/article-dedup"
 import type { ImpartialArticle } from "../lib/types"
 
 function makeArticle(overrides: Partial<ImpartialArticle>): ImpartialArticle {
@@ -86,5 +86,16 @@ describe("article dedup", () => {
 
     const selected = prioritizeArticleVariety(articles, 3)
     expect(selected.map(article => article.category)).toEqual(["Politica", "Economia", "Deportes"])
+  })
+
+  it("keeps a more diverse mix inside a crowded section", () => {
+    const articles = [
+      makeArticle({ id: "1", category: "Politica", title: "Marcha del 24 de marzo en Plaza de Mayo", summary: "Organizaciones marchan en Plaza de Mayo." }),
+      makeArticle({ id: "2", category: "Politica", title: "24 de marzo: concentración en Plaza de Mayo", summary: "Organizaciones marchan en Plaza de Mayo con acto previsto." }),
+      makeArticle({ id: "3", category: "Politica", title: "Kicillof cuestionó la política económica de la dictadura", summary: "El gobernador habló por el Día de la Memoria." }),
+    ]
+
+    const selected = pickDistinctArticles(articles, 2)
+    expect(selected.map(article => article.id)).toEqual(["1", "3"])
   })
 })

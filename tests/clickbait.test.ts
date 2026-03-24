@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deriveClickbaitFallbackAnswer } from "../lib/clickbait"
+import { deriveClickbaitFallbackAnswer, extractArticleContextFromHtml } from "../lib/clickbait"
 import type { RSSItem } from "../lib/types"
 
 function makeItem(overrides: Partial<RSSItem>): RSSItem {
@@ -58,5 +58,27 @@ describe("clickbait fallback answers", () => {
     })
 
     expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
+  it("extracts article context from HTML paragraphs and list items", () => {
+    const html = `
+      <html>
+        <head>
+          <meta property="og:description" content="Scaloni analiza una nómina reducida para los amistosos." />
+        </head>
+        <body>
+          <article>
+            <p>El técnico citó a Emiliano Martínez, Cristian Romero y Alexis Mac Allister.</p>
+            <ul>
+              <li>Enzo Fernández</li>
+              <li>Julián Álvarez</li>
+            </ul>
+          </article>
+        </body>
+      </html>
+    `
+
+    expect(extractArticleContextFromHtml(html)).toContain("Emiliano Martínez")
+    expect(extractArticleContextFromHtml(html)).toContain("Enzo Fernández")
   })
 })

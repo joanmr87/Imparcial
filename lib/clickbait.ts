@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache"
 import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
+import { load } from "cheerio"
 import { z } from "zod"
 import { getLatestFeedSnapshot } from "./feed-store"
 import { inferCategoryFromItem } from "./news-categories"
@@ -15,6 +16,10 @@ export interface ClickbaitBusterItem {
   imageUrl?: string
 }
 
+interface ClickbaitCandidate extends RSSItem {
+  articleContext: string
+}
+
 const clickbaitSelectionSchema = z.object({
   items: z.array(
     z.object({
@@ -23,6 +28,7 @@ const clickbaitSelectionSchema = z.object({
       answer: z.string().describe("Respuesta concreta y util para el lector"),
       importanceScore: z.number().min(1).max(10),
       clickbaitScore: z.number().min(1).max(10),
+      confidenceScore: z.number().min(1).max(10),
     })
   ),
 })
@@ -94,6 +100,117 @@ function dedupeCandidates(items: RSSItem[]): RSSItem[] {
   })
 }
 
+function cleanContextFragment(text: string): string {
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .trim()
+}
+
+function pushUniqueFragment(fragments: string[], seen: Set<string>, value?: string | null, minLength = 30) {
+  const clean = cleanContextFragment(value || "")
+  if (clean.length < minLength) return
+
+  const normalized = normalizeText(clean)
+  if (seen.has(normalized)) return
+  seen.add(normalized)
+  fragments.push(clean)
+}
+
+function collectStructuredText(value: unknown, fragments: string[], seen: Set<string>) {
+  if (!value) return
+
+  if (typeof value === "string") {
+    pushUniqueFragment(fragments, seen, value)
+    return
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectStructuredText(item, fragments, seen)
+    }
+    return
+  }
+
+  if (typeof value === "object") {
+    const objectValue = value as Record<string, unknown>
+    for (const key of ["headline", "description", "articleBody", "text", "name"]) {
+      collectStructuredText(objectValue[key], fragments, seen)
+    }
+  }
+}
+
+export function extractArticleContextFromHtml(html: string): string {
+  const $ = load(html)
+  const fragments: string[] = []
+  const seen = new Set<string>()
+
+  pushUniqueFragment(fragments, seen, $("meta[property='og:description']").attr("content"))
+  pushUniqueFragment(fragments, seen, $("meta[name='description']").attr("content"))
+
+  $("script[type='application/ld+json']").each((_, element) => {
+    const raw = $(element).text().trim()
+    if (!raw) return
+
+    try {
+      const parsed = JSON.parse(raw)
+      collectStructuredText(parsed, fragments, seen)
+    } catch {
+      // Ignore malformed structured data.
+    }
+  })
+
+  $("article p, main p, p").slice(0, 18).each((_, element) => {
+    pushUniqueFragment(fragments, seen, $(element).text())
+  })
+
+  $("article li, main li, li").slice(0, 12).each((_, element) => {
+    pushUniqueFragment(fragments, seen, $(element).text(), 6)
+  })
+
+  return fragments.slice(0, 10).join(" ")
+}
+
+async function fetchArticleContext(item: RSSItem): Promise<ClickbaitCandidate> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10_000)
+
+    try {
+      const response = await fetch(item.link, {
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "DiarioImparcial/1.0 (+https://v0-ai-news-verification-ten.vercel.app)",
+          "Accept": "text/html,application/xhtml+xml",
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const html = await response.text()
+      const articleContext = extractArticleContextFromHtml(html)
+
+      return {
+        ...item,
+        articleContext: articleContext || item.description,
+      }
+    } finally {
+      clearTimeout(timeout)
+    }
+  } catch {
+    return {
+      ...item,
+      articleContext: item.description,
+    }
+  }
+}
+
 function truncateAnswer(answer: string): string {
   return answer
     .replace(/\s+/g, " ")
@@ -127,37 +244,71 @@ function cleanShortAnswer(answer: string): string {
 }
 
 export function deriveClickbaitFallbackAnswer(item: RSSItem): string | null {
+  return deriveClickbaitFallbackAnswerFromContext(item, "")
+}
+
+function extractNameList(text: string, maxItems = 5): string | null {
+  const matches = text.match(/\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2}\b/g)
+  if (!matches) return null
+
+  const names = [...new Set(matches)]
+    .filter(name => name.split(" ").every(part => part.length > 2))
+    .slice(0, maxItems)
+
+  return names.length >= 2 ? names.join(", ") : null
+}
+
+function deriveClickbaitFallbackAnswerFromContext(item: RSSItem, extraContext: string): string | null {
   const title = normalizeText(item.title)
-  const description = item.description.trim()
-  if (!description) return null
+  const context = `${item.description.trim()} ${extraContext.trim()}`.trim()
+  if (!context) return null
 
   if (/\ba cuanto\b|\bcuanto cuesta\b/.test(title)) {
     if (hasPluralPriceCue(title)) return null
-    const amountMatch = description.match(/\$\s?\d(?:[\d\.\,\s]*\d)?(?:\s*(mil|millones?))?/i)
+    const amountMatch = context.match(/\$\s?\d(?:[\d\.\,\s]*\d)?(?:\s*(mil|millones?))?/i)
     return amountMatch ? amountMatch[0] : null
   }
 
+  if (/\binflacion\b/.test(title)) {
+    const percentMatch = context.match(/\b\d{1,2}(?:[.,]\d)?\s?%/i)
+    return percentMatch ? `aprox. ${percentMatch[0].replace(/\s+/g, "")}` : null
+  }
+
   if (/\ba que edad\b/.test(title)) {
-    const ageMatch = description.match(/\b\d{1,2}\s+años\b/i)
+    const ageMatch = context.match(/\b\d{1,2}\s+años\b/i)
     return ageMatch ? ageMatch[0] : null
   }
 
   if (/\bdonde\b/.test(title)) {
-    const placeMatch = description.match(/\ben\s+(la|el|los|las)\s+[A-ZÁÉÍÓÚÑa-záéíóúñ0-9\s]{3,50}/)
+    const placeMatch = context.match(/\ben\s+(la|el|los|las)\s+[A-ZÁÉÍÓÚÑa-záéíóúñ0-9\s]{3,50}/)
     return placeMatch ? cleanShortAnswer(placeMatch[0]) : null
   }
 
+  if (/\bcalor\b|\btemperatura\b|\bmeteorologic/.test(title)) {
+    const tempMatches = [...context.matchAll(/\b(\d{2})\s?°/g)].map(match => Number(match[1]))
+    if (tempMatches.length > 0) {
+      return `hasta ${Math.max(...tempMatches)}°`
+    }
+  }
+
+  if (/\bcitacion\b|\bconvocad\b|\blista\b/.test(title)) {
+    return extractNameList(context, 6)
+  }
+
   if (/^\s*quien\b|^\s*quienes\b|\breemplazante\b/.test(title)) {
-    const directCandidate = description.match(/\b(?:a|como)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b/)
+    const directCandidate = context.match(/\b(?:a|como)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b/)
     if (directCandidate) return directCandidate[1]
-    return extractCapitalizedName(description)
+    return extractCapitalizedName(context)
   }
 
   if (/\brevelo\b|\bconfirmo\b|\banuncio\b/.test(title)) {
-    return extractCapitalizedName(description)
+    return extractCapitalizedName(context)
   }
 
   if (/\bcuales son los \d+\b/.test(title)) {
+    const extractedNames = extractNameList(context, 6)
+    if (extractedNames) return extractedNames
+
     const countMatch = item.title.match(/\b(\d+)\b/)
     return countMatch ? `${countMatch[1]} opciones` : null
   }
@@ -185,7 +336,7 @@ function heuristicImportanceScore(item: RSSItem): number {
 
 async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
   const { items } = await getLatestFeedSnapshot()
-  const candidates = dedupeCandidates(
+  const candidatePool = dedupeCandidates(
     items
       .filter(looksLikePotentialClickbait)
       .sort((left, right) => {
@@ -193,18 +344,23 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
         if (scoreDifference !== 0) return scoreDifference
         return new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime()
       })
-      .slice(0, 30)
+      .slice(0, 40)
   )
 
-  if (candidates.length === 0) return []
+  if (candidatePool.length === 0) return []
 
-  const prompt = candidates
+  const enrichedCandidates = await Promise.all(
+    candidatePool.slice(0, 14).map(item => fetchArticleContext(item))
+  )
+
+  const prompt = enrichedCandidates
     .map((item, index) => [
       `Item ${index + 1}`,
       `ID: ${item.sourceId}:${index}`,
       `Titulo: ${item.title}`,
       `Medio: ${item.source}`,
       `Descripcion: ${item.description || "Sin bajada disponible"}`,
+      `Contexto extraido: ${item.articleContext || "Sin contexto extraido"}`,
       `URL: ${item.link}`,
     ].join("\n"))
     .join("\n\n---\n\n")
@@ -215,17 +371,20 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
       model: openai(process.env.OPENAI_MODEL || "gpt-5-nano"),
       schema: clickbaitSelectionSchema,
       system: [
-        "Sos editor de una seccion de Diario Imparcial que detecta y desarma titulares clickbait.",
-        "Primero decidis si el titulo realmente oculta un dato concreto que el lector probablemente quiere abrir para conocer.",
-        "Solo inclui titulos si la descripcion ya revela esa respuesta de forma suficiente.",
-        "Exclui notas de analisis, opinion, coberturas en vivo, listados largos, explicaciones amplias o titulares que ya son informativos por si mismos.",
-        "Si inclui un item, responde con el dato concreto que el usuario queria saber.",
-        "La respuesta puede ser una palabra, una cifra, un nombre propio o una frase corta de una sola oracion.",
-        "No inventes datos. Si la descripcion no alcanza para responder con certeza, include=false.",
-        "No uses formulas como 'No lo dice claro'. Si no se puede responder bien, no lo incluyas.",
-        "Responde en espanol de Argentina, con tono seco, claro y un poco picante cuando sirva, pero sin hacerse el gracioso porque si.",
-        "Si un titular es apenas largo pero no es verdaderamente clickbait, dejalo afuera.",
-        "Da importanceScore segun interes general para una audiencia argentina y clickbaitScore segun cuan cebado este el titular.",
+        "Sos editor de la seccion Te ahorramos el click de Diario Imparcial.",
+        "Tu trabajo es detectar titulares anzuelo que esconden un dato concreto y devolver exactamente ese dato de forma corta, filosa y util.",
+        "Esto aplica a nombres, convocados, listas, fechas, horarios, lugares, cifras, temperaturas, porcentajes o cualquier dato que el lector tuvo que abrir para encontrar.",
+        "No te interesa si el titulo es largo: solo entra si oculta una respuesta concreta.",
+        "Exclui analisis, opinion, vivos, cronicas amplias, rankings sin respuesta clara o temas donde la nota no resuelve de verdad la pregunta.",
+        "Si la respuesta es una lista, devolvela como lista compacta separada por comas.",
+        "Si es un pronostico, devolvelo tipo 'hasta 39°' o 'llueve el jueves'.",
+        "Si es una cifra estimada, devolvela tipo 'aprox. 4%'.",
+        "Si es una convocatoria o citacion, devolve solo los nombres.",
+        "No inventes. Si el contexto no permite una respuesta clara, include=false.",
+        "No uses frases vagas como 'No lo dice claro', 'depende' o 'hay que leer la nota'.",
+        "Escribi en espanol de Argentina. La respuesta tiene que poder entrar en una card.",
+        "Ejemplos de criterio: 'Cuales son los 10 autos...' => lista de autos. 'La citacion...' => nombres convocados. 'Hasta que punto podria llegar la inflacion...' => aprox. con numero. 'Hasta cuando sigue la ola de calor...' => temperatura o dia clave. 'Sorpresa en musica argentina...' => nombre propio.",
+        "Da importanceScore segun interes general para una audiencia argentina, clickbaitScore segun cuan cebado este el titular y confidenceScore segun cuan bien respaldada queda la respuesta en el contexto.",
       ].join(" "),
       prompt,
     })
@@ -240,13 +399,13 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
 
       answersById.set(item.id, {
         answer,
-        totalScore: item.importanceScore * 2 + item.clickbaitScore,
+        totalScore: item.importanceScore * 2 + item.clickbaitScore + item.confidenceScore,
       })
     }
 
     const selectedItems: Array<ClickbaitBusterItem & { totalScore: number }> = []
 
-    for (const [index, item] of candidates.entries()) {
+    for (const [index, item] of enrichedCandidates.entries()) {
       const id = `${item.sourceId}:${index}`
       const ranked = answersById.get(id)
 
@@ -268,15 +427,32 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
       .slice(0, 6)
       .map(({ totalScore: _totalScore, ...item }) => item)
 
-      if (rankedByAi.length > 0) return rankedByAi
+      if (rankedByAi.length >= 3) return rankedByAi
+
+      if (rankedByAi.length > 0) {
+        const fallbackItems = buildFallbackItems(enrichedCandidates)
+        const merged = [...rankedByAi]
+
+        for (const fallbackItem of fallbackItems) {
+          if (merged.some(item => item.id === fallbackItem.id)) continue
+          merged.push(fallbackItem)
+          if (merged.length >= 3) break
+        }
+
+        if (merged.length > 0) return merged.slice(0, 6)
+      }
     } catch {
       // Fallback below.
     }
   }
 
+  return buildFallbackItems(enrichedCandidates)
+}
+
+function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterItem[] {
   const fallbackItems: ClickbaitBusterItem[] = candidates
     .map((item): (ClickbaitBusterItem & { heuristicScore: number }) | null => {
-      const answer = deriveClickbaitFallbackAnswer(item)
+      const answer = deriveClickbaitFallbackAnswerFromContext(item, item.articleContext)
       if (!answer || !isValidClickbaitAnswer(answer)) return null
 
       return {
