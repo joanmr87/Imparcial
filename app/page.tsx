@@ -8,7 +8,7 @@ import { getClickbaitBusters } from "@/lib/clickbait"
 import { getHomepageEdition } from "@/lib/homepage"
 import { normalizeSectionSlug } from "@/lib/news-categories"
 
-export const revalidate = 1800
+export const dynamic = "force-dynamic"
 
 interface HomePageProps {
   searchParams?: Promise<{ seccion?: string }>
@@ -148,7 +148,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <ol className="mt-4 space-y-3 text-sm text-foreground/80">
                 <li>1. Leemos varios diarios varias veces por día.</li>
                 <li>2. Detectamos temas repetidos entre al menos dos medios.</li>
-                <li>3. La IA transforma ese cruce en una nota nueva y trazable.</li>
+                <li>3. El sistema editorial arma una nota nueva y trazable a partir de esas coincidencias.</li>
                 <li>4. La portada muestra solo notas propias, nunca links que te saquen del diario.</li>
               </ol>
               <Link
@@ -176,7 +176,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Las notas son generadas por IA bajo reglas editoriales publicas.
+              Las notas se producen con un sistema editorial automatizado y reglas publicas de trazabilidad.
             </p>
           </div>
         </div>

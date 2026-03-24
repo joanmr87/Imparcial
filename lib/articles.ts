@@ -1,5 +1,6 @@
 import { getGeneratedEditorialStock } from "./editorial-stock"
 import { getArticleBySlug as getArticleFromMock, mockArticles } from "./mock-data"
+import { inferCategoryFromArticle } from "./news-categories"
 import { getDatabaseArticleBySlug, getDatabaseArticles, isTableMissingError } from "./supabase-admin"
 import type { ImpartialArticle } from "./types"
 
@@ -14,6 +15,10 @@ function dedupeArticles(articles: ImpartialArticle[]): ImpartialArticle[] {
   })
 }
 
+function distinctCategories(articles: ImpartialArticle[]): number {
+  return new Set(articles.map(article => inferCategoryFromArticle(article))).size
+}
+
 export async function listPublishedArticles(): Promise<{
   articles: ImpartialArticle[]
   source: "database" | "generated" | "mock"
@@ -22,15 +27,20 @@ export async function listPublishedArticles(): Promise<{
   try {
     const databaseArticles = await getDatabaseArticles()
     const generatedArticles = await getGeneratedEditorialStock()
-    const articles = dedupeArticles([...databaseArticles, ...generatedArticles])
+    const needsEditorialSupport = databaseArticles.length < 12 || distinctCategories(databaseArticles) < 4
+    const articles = dedupeArticles(
+      needsEditorialSupport
+        ? [...generatedArticles, ...databaseArticles]
+        : [...databaseArticles, ...generatedArticles]
+    )
 
     if (articles.length > 0) {
       return {
         articles,
         source: databaseArticles.length > 0 ? "database" : "generated",
-        warning: databaseArticles.length > 0
-          ? undefined
-          : "La base tiene poco inventario y la portada se completa con notas propias generadas desde las fuentes actuales.",
+        warning: needsEditorialSupport
+          ? "La edición se completa con notas propias recién generadas para ampliar temas y secciones mientras la base consolida más inventario."
+          : undefined,
       }
     }
 

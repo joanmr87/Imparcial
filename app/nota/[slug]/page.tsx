@@ -146,7 +146,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 Nota de transparencia
               </p>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Esta nota fue generada automaticamente por inteligencia artificial siguiendo las reglas editoriales de Diario Imparcial. Los hechos fueron extraidos de {sourceCount} fuentes y verificados por contraste. Las discrepancias entre fuentes se senalan en el panel lateral.
+                Esta nota fue armada automaticamente por el sistema editorial de Diario Imparcial a partir de {sourceCount} fuentes. El proceso cruza coberturas sobre el mismo hecho, marca que esta confirmado, que queda atribuido y donde aparecen diferencias entre medios.
               </p>
               <p className="mt-4 text-xs text-muted-foreground">
                 Actualizado: {new Date(article.updatedAt).toLocaleString('es-AR', {
