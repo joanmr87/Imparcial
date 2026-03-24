@@ -19,8 +19,18 @@ const STOPWORDS = new Set([
   "fueron", "hay", "hoy", "la", "las", "lo", "los", "más", "menos", "mi", "mis",
   "mientras", "muy", "no", "o", "para", "pero", "por", "qué", "que", "quien",
   "quienes", "se", "según", "ser", "sin", "sobre", "su", "sus", "tras", "un",
-  "una", "uno", "unos", "unas", "ya"
+  "una", "uno", "unos", "unas", "ya", "enero", "febrero", "marzo", "abril",
+  "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre",
+  "diciembre", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado",
+  "domingo", "ultima", "ultimas", "minuto", "vivo"
 ])
+
+const NOISE_PATTERNS = [
+  /\b(loteria|quiniela|sorteo|resultado sinuano|chance|jackpot|horoscopo)\b/,
+  /\b(numeros? ganadores?|premio mayor|apuesta)\b/,
+]
+
+const INFObAE_FOREIGN_SECTION_PATTERN = /\/(colombia|mexico|peru|america|espana|estados-unidos|usa)\//
 
 function normalizeText(text: string): string {
   return text
@@ -128,6 +138,20 @@ function dedupeItems(items: RSSItem[]): RSSItem[] {
     seen.add(key)
     return true
   })
+}
+
+function shouldIgnoreItem(item: RSSItem): boolean {
+  const text = normalizeText(`${item.title} ${item.description} ${item.link}`)
+
+  if (NOISE_PATTERNS.some(pattern => pattern.test(text))) {
+    return true
+  }
+
+  if (item.sourceId === "infobae" && INFObAE_FOREIGN_SECTION_PATTERN.test(item.link)) {
+    return true
+  }
+
+  return false
 }
 
 function tokenize(text: string): string[] {
@@ -295,7 +319,9 @@ async function fetchFeedUrl(source: NewsSource, url: string): Promise<RSSItem[]>
     }
 
     const xml = await response.text()
-    const items = dedupeItems(parseRSSXML(xml, source)).slice(0, MAX_ITEMS_PER_SOURCE)
+    const items = dedupeItems(parseRSSXML(xml, source))
+      .filter(item => !shouldIgnoreItem(item))
+      .slice(0, MAX_ITEMS_PER_SOURCE)
 
     if (items.length === 0) {
       throw new Error("Feed responded but no RSS items were parsed")

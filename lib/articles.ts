@@ -1,3 +1,4 @@
+import { isArticleCoherent } from "./article-dedup"
 import { getGeneratedEditorialStock } from "./editorial-stock"
 import { inferCategoryFromArticle } from "./news-categories"
 import { getDatabaseArticleBySlug, getDatabaseArticles, isTableMissingError } from "./supabase-admin"
@@ -24,8 +25,8 @@ export async function listPublishedArticles(): Promise<{
   warning?: string
 }> {
   try {
-    const databaseArticles = await getDatabaseArticles()
-    const generatedArticles = await getGeneratedEditorialStock()
+    const databaseArticles = (await getDatabaseArticles()).filter(isArticleCoherent)
+    const generatedArticles = (await getGeneratedEditorialStock()).filter(isArticleCoherent)
     const needsEditorialSupport = databaseArticles.length < 12 || distinctCategories(databaseArticles) < 4
     const articles = dedupeArticles(
       needsEditorialSupport
@@ -65,14 +66,16 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
 }> {
   try {
     const article = await getDatabaseArticleBySlug(slug)
-    if (article) return { article, source: "database" }
+    if (article && isArticleCoherent(article)) return { article, source: "database" }
   } catch {
     // Fall through to generated content.
   }
 
   try {
     const generatedArticles = await getGeneratedEditorialStock()
-    const generatedArticle = generatedArticles.find(article => article.slug === slug)
+    const generatedArticle = generatedArticles
+      .filter(isArticleCoherent)
+      .find(article => article.slug === slug)
     if (generatedArticle) {
       return { article: generatedArticle, source: "generated" }
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { areArticlesNearDuplicate, dedupeSimilarArticles, pickDistinctArticles, prioritizeArticleVariety } from "../lib/article-dedup"
+import { areArticlesNearDuplicate, dedupeSimilarArticles, isArticleCoherent, pickDistinctArticles, prioritizeArticleVariety } from "../lib/article-dedup"
 import { selectClustersForEditorialStock } from "../lib/editorial-stock"
 import type { ImpartialArticle } from "../lib/types"
 
@@ -112,5 +112,32 @@ describe("article dedup", () => {
     const selected = selectClustersForEditorialStock(clusters, 5)
     expect(selected.map(cluster => cluster.id)).toContain("e1")
     expect(selected.map(cluster => cluster.id)).toContain("d1")
+  })
+
+  it("rejects incoherent articles built from unrelated source titles", () => {
+    const article = makeArticle({
+      title: "Daniel “Pipi” Piazzolla: La oscuridad y el coraje",
+      summary: "Resumen",
+      sources: [
+        {
+          id: "1",
+          name: "Infobae",
+          url: "https://www.infobae.com/colombia/2026/03/24/resultado-sinuano-dia-hoy-24-de-marzo/",
+          publishedAt: "",
+          title: "Resultado Sinuano Día hoy 24 de marzo",
+          snippet: "Como todos los días, la tradicional lotería colombiana difundió la combinación ganadora.",
+        },
+        {
+          id: "2",
+          name: "Pagina/12",
+          url: "https://www.pagina12.com.ar/2026/03/23/daniel-pipi-piazzolla-la-oscuridad-y-el-coraje/",
+          publishedAt: "",
+          title: "Daniel “Pipi” Piazzolla: La oscuridad y el coraje",
+          snippet: "La del 24 de marzo es una conmemoración que debe servirnos para fortalecer la democracia.",
+        },
+      ],
+    })
+
+    expect(isArticleCoherent(article)).toBe(false)
   })
 })

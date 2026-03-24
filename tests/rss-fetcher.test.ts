@@ -27,4 +27,27 @@ describe("rss clustering", () => {
     expect(sportsCluster).toBeDefined()
     expect(sportsCluster?.articles.map(article => article.sourceId).sort()).toEqual(["clarin", "tn"])
   })
+
+  it("does not cluster a lottery result with an unrelated cultural interview", () => {
+    const clusters = clusterNews([
+      {
+        source: "Infobae",
+        sourceId: "infobae",
+        title: "Resultado Sinuano Día hoy 24 de marzo",
+        description: "Como todos los días, la tradicional lotería colombiana difundió la combinación ganadora del primer sorteo del día.",
+        link: "https://www.infobae.com/colombia/2026/03/24/resultado-sinuano-dia-hoy-24-de-marzo/",
+        pubDate: "2026-03-24T17:00:00.000Z",
+      },
+      {
+        source: "Pagina/12",
+        sourceId: "pagina12",
+        title: "Daniel “Pipi” Piazzolla: La oscuridad y el coraje",
+        description: "La del 24 de marzo es una conmemoración que debe servirnos para fortalecer la democracia.",
+        link: "https://www.pagina12.com.ar/2026/03/23/daniel-pipi-piazzolla-la-oscuridad-y-el-coraje/",
+        pubDate: "2026-03-24T17:05:00.000Z",
+      },
+    ])
+
+    expect(clusters.some(cluster => cluster.sourcesCount >= 2)).toBe(false)
+  })
 })

@@ -3,7 +3,10 @@ import type { ImpartialArticle } from "./types"
 const TITLE_STOPWORDS = new Set([
   "a", "al", "ante", "con", "contra", "de", "del", "desde", "el", "en", "entre",
   "la", "las", "los", "por", "para", "que", "se", "su", "sus", "un", "una", "y",
-  "anos", "ano", "hoy", "dia", "dias",
+  "anos", "ano", "hoy", "dia", "dias", "enero", "febrero", "marzo", "abril",
+  "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre",
+  "diciembre", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado",
+  "domingo", "ultima", "ultimas", "minuto", "vivo",
 ])
 
 function normalizeText(value: string): string {
@@ -46,6 +49,10 @@ function sourceNameSet(article: ImpartialArticle): Set<string> {
   return new Set(article.sources.map(source => normalizeText(source.name)))
 }
 
+function tokenizeSourceItem(article: ImpartialArticle): Set<string>[] {
+  return article.sources.map(source => tokenizeTitle(`${source.title} ${source.snippet}`))
+}
+
 function sharedSourceNames(left: ImpartialArticle, right: ImpartialArticle): boolean {
   const leftSources = sourceNameSet(left)
   for (const sourceName of sourceNameSet(right)) {
@@ -63,6 +70,26 @@ export function areArticlesNearDuplicate(left: ImpartialArticle, right: Impartia
   if (titleOverlap >= 0.46 && sharedSourceNames(left, right)) return true
 
   return false
+}
+
+export function isArticleCoherent(article: ImpartialArticle): boolean {
+  if (article.sources.length < 2) return false
+
+  const sourceTokens = tokenizeSourceItem(article)
+  let coherentPairs = 0
+
+  for (let index = 0; index < sourceTokens.length; index += 1) {
+    for (let nestedIndex = index + 1; nestedIndex < sourceTokens.length; nestedIndex += 1) {
+      const overlap = overlapScore(sourceTokens[index], sourceTokens[nestedIndex])
+      const sharedTokens = [...sourceTokens[index]].filter(token => sourceTokens[nestedIndex].has(token)).length
+
+      if (sharedTokens >= 2 || overlap >= 0.18) {
+        coherentPairs += 1
+      }
+    }
+  }
+
+  return coherentPairs > 0
 }
 
 function articlePriority(article: ImpartialArticle): number {
