@@ -140,4 +140,55 @@ describe("article dedup", () => {
 
     expect(isArticleCoherent(article)).toBe(false)
   })
+
+  it("rejects broad mixed sports coverage that only overlaps on Mundial 2026", () => {
+    const article = makeArticle({
+      title: "La citación de último momento que realizó Lionel Scaloni para los amistosos de la selección argentina de cara al Mundial 2026",
+      summary: "Resumen",
+      sources: [
+        {
+          id: "1",
+          name: "Clarin",
+          url: "https://www.clarin.com/deportes/repechaje-mundial-2026.html",
+          publishedAt: "",
+          title: "Dónde se juega el Repechaje intercontinental para el Mundial 2026 y qué selecciones participan",
+          snippet: "Seis selecciones buscan los últimos dos cupos al Mundial 2026.",
+        },
+        {
+          id: "2",
+          name: "Infobae",
+          url: "https://www.infobae.com/deportes/2026/03/24/scaloni-giay/",
+          publishedAt: "",
+          title: "La citación de último momento que realizó Lionel Scaloni para los amistosos de la selección argentina de cara al Mundial 2026",
+          snippet: "Ante la baja de Gonzalo Montiel, el entrenador sumó a Agustín Giay.",
+        },
+        {
+          id: "3",
+          name: "La Nacion",
+          url: "https://www.lanacion.com.ar/deportes/futbol/repechajes-mundial-2026/",
+          publishedAt: "",
+          title: "Repechajes al Mundial 2026: formatos, días y horarios de todos los partidos",
+          snippet: "Se jugarán los clasificatorios que definirán a los equipos que estarán en la Copa del Mundo.",
+        },
+        {
+          id: "4",
+          name: "Pagina/12",
+          url: "https://www.pagina12.com.ar/2026/03/24/mundial-2026-entradas/",
+          publishedAt: "",
+          title: "Mundial 2026: denuncian a la FIFA por los altos precios de las entradas",
+          snippet: "La organización de consumidores presentó un reclamo por el valor de los tickets.",
+        },
+        {
+          id: "5",
+          name: "Ambito",
+          url: "https://www.ambito.com/deportes/finalissima-mundial-2026",
+          publishedAt: "",
+          title: "De cara al Mundial 2026: la inédita marca que consiguió la Selección Argentina por la cancelación de la Finalissima",
+          snippet: "La Albiceleste sumó otro récord tras la suspensión del cruce con España.",
+        },
+      ],
+    })
+
+    expect(isArticleCoherent(article)).toBe(false)
+  })
 })

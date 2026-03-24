@@ -1,4 +1,5 @@
 import type { ImpartialArticle } from "./types"
+import { coherentCoverageRatio, isStrongTopicMatch } from "./topic-coherence"
 
 const TITLE_STOPWORDS = new Set([
   "a", "al", "ante", "con", "contra", "de", "del", "desde", "el", "en", "entre",
@@ -49,10 +50,6 @@ function sourceNameSet(article: ImpartialArticle): Set<string> {
   return new Set(article.sources.map(source => normalizeText(source.name)))
 }
 
-function tokenizeSourceItem(article: ImpartialArticle): Set<string>[] {
-  return article.sources.map(source => tokenizeTitle(`${source.title} ${source.snippet}`))
-}
-
 function sharedSourceNames(left: ImpartialArticle, right: ImpartialArticle): boolean {
   const leftSources = sourceNameSet(left)
   for (const sourceName of sourceNameSet(right)) {
@@ -75,21 +72,24 @@ export function areArticlesNearDuplicate(left: ImpartialArticle, right: Impartia
 export function isArticleCoherent(article: ImpartialArticle): boolean {
   if (article.sources.length < 2) return false
 
-  const sourceTokens = tokenizeSourceItem(article)
-  let coherentPairs = 0
-
-  for (let index = 0; index < sourceTokens.length; index += 1) {
-    for (let nestedIndex = index + 1; nestedIndex < sourceTokens.length; nestedIndex += 1) {
-      const overlap = overlapScore(sourceTokens[index], sourceTokens[nestedIndex])
-      const sharedTokens = [...sourceTokens[index]].filter(token => sourceTokens[nestedIndex].has(token)).length
-
-      if (sharedTokens >= 2 || overlap >= 0.18) {
-        coherentPairs += 1
+  const coherentPairs = article.sources.reduce((count, source, index) => {
+    for (let nestedIndex = index + 1; nestedIndex < article.sources.length; nestedIndex += 1) {
+      if (isStrongTopicMatch(
+        { title: source.title, snippet: source.snippet },
+        { title: article.sources[nestedIndex].title, snippet: article.sources[nestedIndex].snippet }
+      )) {
+        return count + 1
       }
     }
-  }
 
-  return coherentPairs > 0
+    return count
+  }, 0)
+
+  if (coherentPairs === 0) return false
+
+  return coherentCoverageRatio(
+    article.sources.map(source => ({ title: source.title, snippet: source.snippet }))
+  ) >= 0.6
 }
 
 function articlePriority(article: ImpartialArticle): number {

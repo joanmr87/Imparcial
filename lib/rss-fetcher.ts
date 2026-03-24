@@ -1,5 +1,6 @@
 import { getEnabledSources, NEWS_SOURCES, type NewsSource } from "./sources"
 import { inferCategoryFromItem } from "./news-categories"
+import { coherentTopicGroups, isStrongTopicMatch } from "./topic-coherence"
 import type { NewsCluster, RSSItem } from "./types"
 
 export interface FetchResult {
@@ -212,8 +213,6 @@ function inferClusterCategory(cluster: MutableCluster): string {
 }
 
 function findBestCluster(item: RSSItem, clusters: MutableCluster[]): MutableCluster | null {
-  const itemKeywords = toKeywordSet(item)
-  const itemNumbers = getNumberTokens(item)
   const itemCategory = inferCategoryFromItem(item)
 
   let bestMatch: MutableCluster | null = null
@@ -229,17 +228,41 @@ function findBestCluster(item: RSSItem, clusters: MutableCluster[]): MutableClus
       continue
     }
 
-    const keywordOverlap = overlapScore(itemKeywords, cluster.keywordSet)
-    const sharedTokens = countSharedTokens(itemKeywords, cluster.keywordSet)
-    const numberOverlap = overlapScore(itemNumbers, cluster.numberSet)
+    const bestPairMatch = cluster.items.reduce((currentBest, clusterItem) => {
+      const pairKeywordsLeft = toKeywordSet(item)
+      const pairKeywordsRight = toKeywordSet(clusterItem)
+      const pairNumbersLeft = getNumberTokens(item)
+      const pairNumbersRight = getNumberTokens(clusterItem)
+      const keywordOverlap = overlapScore(pairKeywordsLeft, pairKeywordsRight)
+      const sharedTokens = countSharedTokens(pairKeywordsLeft, pairKeywordsRight)
+      const numberOverlap = overlapScore(pairNumbersLeft, pairNumbersRight)
+
+      return keywordOverlap * 0.75 + numberOverlap * 0.25 > currentBest.score
+        ? {
+            score: keywordOverlap * 0.75 + numberOverlap * 0.25,
+            sharedTokens,
+            numberOverlap,
+            keywordOverlap,
+            strongTopicMatch: isStrongTopicMatch(item, clusterItem),
+          }
+        : currentBest
+    }, {
+      score: 0,
+      sharedTokens: 0,
+      numberOverlap: 0,
+      keywordOverlap: 0,
+      strongTopicMatch: false,
+    })
+
     const isSportsCluster = itemCategory === "Deportes" && clusterCategory === "Deportes"
-
-    const score = keywordOverlap * 0.75 + numberOverlap * 0.25
-
-    const matchesDefaultThreshold = (sharedTokens >= 3 && score >= 0.28) || score >= 0.42
+    const score = bestPairMatch.score
+    const matchesDefaultThreshold =
+      bestPairMatch.strongTopicMatch &&
+      ((bestPairMatch.sharedTokens >= 2 && score >= 0.16) || score >= 0.28)
     const matchesSportsThreshold =
       isSportsCluster &&
-      ((sharedTokens >= 2 && score >= 0.2) || (sharedTokens >= 1 && keywordOverlap >= 0.3 && numberOverlap >= 0.1))
+      bestPairMatch.strongTopicMatch &&
+      ((bestPairMatch.sharedTokens >= 2 && score >= 0.14) || (bestPairMatch.sharedTokens >= 1 && bestPairMatch.keywordOverlap >= 0.22 && bestPairMatch.numberOverlap >= 0.08))
 
     if (matchesDefaultThreshold || matchesSportsThreshold) {
       if (score > bestScore) {
@@ -399,19 +422,40 @@ export function clusterNews(allItems: RSSItem[]): NewsCluster[] {
     })
   }
 
-  return clusters
-    .map(cluster => ({
-      id: cluster.id,
-      topic: cluster.canonicalTitle,
-      canonicalTitle: cluster.canonicalTitle,
-      articles: cluster.items.sort(
+  const coherentClusters = clusters.flatMap(cluster => {
+    const groups = coherentTopicGroups(cluster.items)
+
+    return groups.map(group => {
+      const sortedGroup = [...group].sort(
         (left, right) => new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime()
-      ),
-      sourcesCount: new Set(cluster.items.map(item => item.sourceId)).size,
-      keywords: rankKeywords(cluster),
-      firstPublishedAt: cluster.firstPublishedAt,
-      lastPublishedAt: cluster.lastPublishedAt,
-    }))
+      )
+      const canonicalTitle = [...group]
+        .sort((left, right) => right.title.length - left.title.length)[0]?.title || cluster.canonicalTitle
+      const mutableGroup: MutableCluster = {
+        id: sortedGroup[0]?.link || cluster.id,
+        items: sortedGroup,
+        keywordSet: new Set(group.flatMap(item => [...toKeywordSet(item)])),
+        numberSet: new Set(group.flatMap(item => [...getNumberTokens(item)])),
+        canonicalTitle,
+        firstPublishedAt: [...group]
+          .sort((left, right) => new Date(left.pubDate).getTime() - new Date(right.pubDate).getTime())[0]?.pubDate || cluster.firstPublishedAt,
+        lastPublishedAt: sortedGroup[0]?.pubDate || cluster.lastPublishedAt,
+      }
+
+      return {
+        id: mutableGroup.id,
+        topic: mutableGroup.canonicalTitle,
+        canonicalTitle: mutableGroup.canonicalTitle,
+        articles: sortedGroup,
+        sourcesCount: new Set(sortedGroup.map(item => item.sourceId)).size,
+        keywords: rankKeywords(mutableGroup),
+        firstPublishedAt: mutableGroup.firstPublishedAt,
+        lastPublishedAt: mutableGroup.lastPublishedAt,
+      }
+    })
+  })
+
+  return coherentClusters
     .sort((left, right) => {
       if (right.sourcesCount !== left.sourcesCount) return right.sourcesCount - left.sourcesCount
       if (right.articles.length !== left.articles.length) return right.articles.length - left.articles.length
