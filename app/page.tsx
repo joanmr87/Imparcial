@@ -94,7 +94,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Sobre Diario Imparcial
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Cada nota propia cruza varias coberturas del mismo hecho y después ordena qué está confirmado, qué queda atribuido y en qué difieren los medios. El sitio ya no deriva a notas ajenas: la idea es que todo lo que leas acá sea parte de una edición propia de El Imparcial.
+              Cada nota cruza varias coberturas del mismo hecho y después ordena qué está confirmado, qué queda atribuido y en qué difieren los medios. El sitio ya no deriva a notas ajenas: la idea es que todo lo que leas acá sea una síntesis construida a partir de varios medios.
             </p>
             <div className="mt-6 flex items-center justify-center gap-8 text-xs text-muted-foreground">
               <div>
@@ -126,11 +126,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 Que es El Imparcial
               </p>
               <h2 className="mt-3 font-serif text-3xl font-semibold text-foreground">
-                Un diario hecho para entender rápido qué pasó, sin fumarte el sesgo de una sola tapa
+                Un diario hecho para entender rápido qué pasó, sin depender de la mirada de una sola tapa
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
                 Cuando una noticia importa de verdad, casi nunca aparece en un solo medio. El Imparcial toma
-                varias coberturas, detecta qué cuentan sobre el mismo hecho y construye una versión nueva,
+                varias coberturas, detecta qué cuentan sobre el mismo hecho y construye una síntesis nueva,
                 más clara y más fácil de leer.
               </p>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
@@ -146,8 +146,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <ol className="mt-4 space-y-3 text-sm text-foreground/80">
                 <li>1. Leemos varios diarios varias veces por día.</li>
                 <li>2. Detectamos temas repetidos entre al menos dos medios.</li>
-                <li>3. El sistema editorial arma una nota nueva y trazable a partir de esas coincidencias.</li>
-                <li>4. La portada muestra solo notas propias, nunca links que te saquen del diario.</li>
+                <li>3. El sistema editorial arma una síntesis nueva y trazable a partir de esas coincidencias.</li>
+                <li>4. La portada muestra solo síntesis construidas desde varios medios, nunca links que te saquen del diario.</li>
               </ol>
               <Link
                 href="/metodologia"

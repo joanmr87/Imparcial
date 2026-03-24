@@ -39,7 +39,7 @@ export async function listPublishedArticles(): Promise<{
         articles,
         source: databaseArticles.length > 0 ? "database" : "generated",
         warning: needsEditorialSupport
-          ? "La edición se completa con notas propias recién generadas para ampliar temas y secciones mientras la base consolida más inventario."
+          ? "La edición se completa con síntesis recién generadas a partir de varias coberturas para ampliar temas y secciones mientras la base consolida más inventario."
           : undefined,
       }
     }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { areArticlesNearDuplicate, dedupeSimilarArticles, pickDistinctArticles, prioritizeArticleVariety } from "../lib/article-dedup"
+import { selectClustersForEditorialStock } from "../lib/editorial-stock"
 import type { ImpartialArticle } from "../lib/types"
 
 function makeArticle(overrides: Partial<ImpartialArticle>): ImpartialArticle {
@@ -97,5 +98,19 @@ describe("article dedup", () => {
 
     const selected = pickDistinctArticles(articles, 2)
     expect(selected.map(article => article.id)).toEqual(["1", "3"])
+  })
+
+  it("reserves room for sports and economy in editorial stock selection", () => {
+    const clusters = [
+      { id: "p1", topic: "p1", canonicalTitle: "Milei habló del Congreso", articles: [{ source: "Infobae", sourceId: "infobae", title: "Milei habló del Congreso", description: "", link: "/politica", pubDate: "", imageUrl: "" }], sourcesCount: 2, keywords: [], firstPublishedAt: "", lastPublishedAt: "" },
+      { id: "p2", topic: "p2", canonicalTitle: "Kicillof criticó al Gobierno", articles: [{ source: "TN", sourceId: "tn", title: "Kicillof criticó al Gobierno", description: "", link: "/politica", pubDate: "", imageUrl: "" }], sourcesCount: 2, keywords: [], firstPublishedAt: "", lastPublishedAt: "" },
+      { id: "p3", topic: "p3", canonicalTitle: "Senado debate una reforma", articles: [{ source: "Ambito", sourceId: "ambito", title: "Senado debate una reforma", description: "", link: "/politica", pubDate: "", imageUrl: "" }], sourcesCount: 2, keywords: [], firstPublishedAt: "", lastPublishedAt: "" },
+      { id: "e1", topic: "e1", canonicalTitle: "Sube el dólar blue", articles: [{ source: "Cronista", sourceId: "cronista", title: "Sube el dólar blue", description: "", link: "/economia", pubDate: "", imageUrl: "" }], sourcesCount: 2, keywords: [], firstPublishedAt: "", lastPublishedAt: "" },
+      { id: "d1", topic: "d1", canonicalTitle: "Scaloni define la lista para los amistosos", articles: [{ source: "La Nacion", sourceId: "lanacion", title: "Scaloni define la lista para los amistosos", description: "", link: "/deportes", pubDate: "", imageUrl: "" }], sourcesCount: 2, keywords: [], firstPublishedAt: "", lastPublishedAt: "" },
+    ]
+
+    const selected = selectClustersForEditorialStock(clusters, 5)
+    expect(selected.map(cluster => cluster.id)).toContain("e1")
+    expect(selected.map(cluster => cluster.id)).toContain("d1")
   })
 })

@@ -1,20 +1,74 @@
 import { unstable_cache } from "next/cache"
-import { generatePipelineRun } from "./pipeline"
-import type { ImpartialArticle } from "./types"
+import { generateImpartialArticle } from "./editorial"
+import { inferCategoryFromItem } from "./news-categories"
+import { collectLatestClusters } from "./pipeline"
+import type { ImpartialArticle, NewsCluster } from "./types"
 
 const GENERATED_STOCK_LIMIT = 18
+const STOCK_CATEGORY_TARGETS = {
+  Politica: 6,
+  Economia: 4,
+  Sociedad: 4,
+  Deportes: 4,
+} as const
+
+function inferClusterCategory(cluster: NewsCluster): string {
+  const counts = new Map<string, number>()
+
+  for (const article of cluster.articles) {
+    const category = inferCategoryFromItem(article)
+    counts.set(category, (counts.get(category) || 0) + 1)
+  }
+
+  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || "Sociedad"
+}
+
+export function selectClustersForEditorialStock(clusters: NewsCluster[], limit: number): NewsCluster[] {
+  const buckets = new Map<string, NewsCluster[]>()
+
+  for (const cluster of clusters) {
+    const category = inferClusterCategory(cluster)
+    const bucket = buckets.get(category) || []
+    bucket.push(cluster)
+    buckets.set(category, bucket)
+  }
+
+  const selected: NewsCluster[] = []
+
+  for (const [category, target] of Object.entries(STOCK_CATEGORY_TARGETS)) {
+    const bucket = buckets.get(category) || []
+    selected.push(...bucket.slice(0, target))
+    buckets.set(category, bucket.slice(target))
+    if (selected.length >= limit) return selected.slice(0, limit)
+  }
+
+  const remaining = [...buckets.values()].flat()
+
+  for (const cluster of remaining) {
+    if (selected.some(item => item.id === cluster.id)) continue
+    selected.push(cluster)
+    if (selected.length >= limit) break
+  }
+
+  return selected
+}
 
 async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
   try {
-    const result = await generatePipelineRun({
+    const collected = await collectLatestClusters({
       minSources: 2,
-      limit: GENERATED_STOCK_LIMIT,
-      generateArticles: true,
-      persist: false,
-      useAi: false,
+      limit: 40,
     })
 
-    return result.generated.map(item => item.article)
+    const selectedClusters = selectClustersForEditorialStock(collected.clusters, GENERATED_STOCK_LIMIT)
+    const articles = await Promise.all(
+      selectedClusters.map(async cluster => {
+        const result = await generateImpartialArticle(cluster.topic, cluster.articles, { useAi: false })
+        return result.article
+      })
+    )
+
+    return articles
   } catch {
     return []
   }
@@ -22,6 +76,6 @@ async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
 
 export const getGeneratedEditorialStock = unstable_cache(
   buildGeneratedEditorialStock,
-  ["generated-editorial-stock-v2"],
+  ["generated-editorial-stock-v4"],
   { revalidate: 60 * 30 }
 )
