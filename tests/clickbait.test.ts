@@ -60,6 +60,15 @@ describe("clickbait fallback answers", () => {
     expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
   })
 
+  it("does not resolve broad institutional titles with generic answers", () => {
+    const item = makeItem({
+      title: "Ya es un hecho: el Gobierno confirmó la inscripción gratuita de menores",
+      description: "El Gobierno informó que quienes no se inscriban deberán pagar el trámite en el plazo previsto.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
   it("extracts article context from HTML paragraphs and list items", () => {
     const html = `
       <html>

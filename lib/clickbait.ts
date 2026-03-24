@@ -228,7 +228,13 @@ function isValidClickbaitAnswer(answer: string): boolean {
   if (clean.length < 3) return false
   if (/^\$\s?\d{1,2}$/.test(clean)) return false
   if (/^(no se sabe|sin datos|en vivo)$/i.test(clean)) return false
+  if (/^(el gobierno|en estados unidos|en mexico|en uruguay)$/i.test(clean)) return false
   return true
+}
+
+function normalizeResolvedAnswer(answer: string | null): string | null {
+  if (!answer) return null
+  return isValidClickbaitAnswer(answer) ? answer : null
 }
 
 function extractCapitalizedName(description: string): string | null {
@@ -266,51 +272,51 @@ function deriveClickbaitFallbackAnswerFromContext(item: RSSItem, extraContext: s
   if (/\ba cuanto\b|\bcuanto cuesta\b/.test(title)) {
     if (hasPluralPriceCue(title)) return null
     const amountMatch = context.match(/\$\s?\d(?:[\d\.\,\s]*\d)?(?:\s*(mil|millones?))?/i)
-    return amountMatch ? amountMatch[0] : null
+    return normalizeResolvedAnswer(amountMatch ? amountMatch[0] : null)
   }
 
   if (/\binflacion\b/.test(title)) {
     const percentMatch = context.match(/\b\d{1,2}(?:[.,]\d)?\s?%/i)
-    return percentMatch ? `aprox. ${percentMatch[0].replace(/\s+/g, "")}` : null
+    return normalizeResolvedAnswer(percentMatch ? `aprox. ${percentMatch[0].replace(/\s+/g, "")}` : null)
   }
 
   if (/\ba que edad\b/.test(title)) {
     const ageMatch = context.match(/\b\d{1,2}\s+años\b/i)
-    return ageMatch ? ageMatch[0] : null
+    return normalizeResolvedAnswer(ageMatch ? ageMatch[0] : null)
   }
 
   if (/\bdonde\b/.test(title)) {
     const placeMatch = context.match(/\ben\s+(la|el|los|las)\s+[A-ZÁÉÍÓÚÑa-záéíóúñ0-9\s]{3,50}/)
-    return placeMatch ? cleanShortAnswer(placeMatch[0]) : null
+    return normalizeResolvedAnswer(placeMatch ? cleanShortAnswer(placeMatch[0]) : null)
   }
 
   if (/\bcalor\b|\btemperatura\b|\bmeteorologic/.test(title)) {
     const tempMatches = [...context.matchAll(/\b(\d{2})\s?°/g)].map(match => Number(match[1]))
     if (tempMatches.length > 0) {
-      return `hasta ${Math.max(...tempMatches)}°`
+      return normalizeResolvedAnswer(`hasta ${Math.max(...tempMatches)}°`)
     }
   }
 
   if (/\bcitacion\b|\bconvocad\b|\blista\b/.test(title)) {
-    return extractNameList(context, 6)
+    return normalizeResolvedAnswer(extractNameList(context, 6))
   }
 
   if (/^\s*quien\b|^\s*quienes\b|\breemplazante\b/.test(title)) {
     const directCandidate = context.match(/\b(?:a|como)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b/)
-    if (directCandidate) return directCandidate[1]
-    return extractCapitalizedName(context)
+    if (directCandidate) return normalizeResolvedAnswer(directCandidate[1])
+    return normalizeResolvedAnswer(extractCapitalizedName(context))
   }
 
   if (/\brevelo\b|\bconfirmo\b|\banuncio\b/.test(title)) {
-    return extractCapitalizedName(context)
+    return normalizeResolvedAnswer(extractCapitalizedName(context))
   }
 
   if (/\bcuales son los \d+\b/.test(title)) {
     const extractedNames = extractNameList(context, 6)
-    if (extractedNames) return extractedNames
+    if (extractedNames) return normalizeResolvedAnswer(extractedNames)
 
     const countMatch = item.title.match(/\b(\d+)\b/)
-    return countMatch ? `${countMatch[1]} opciones` : null
+    return normalizeResolvedAnswer(countMatch ? `${countMatch[1]} opciones` : null)
   }
 
   return null
@@ -330,8 +336,14 @@ function heuristicImportanceScore(item: RSSItem): number {
     0,
     (Date.now() - new Date(item.pubDate).getTime()) / (1000 * 60 * 60)
   )
+  const text = normalizeText(`${item.title} ${item.description} ${item.link}`)
+  const foreignPenalty =
+    /\b(mexico|estados unidos|usa|texas|uruguay|europa|the economist)\b/.test(text) &&
+    !/\b(argentina|amba|buenos aires|milei|scaloni|seleccion argentina)\b/.test(text)
+      ? 8
+      : 0
 
-  return categoryWeight * 3 + scorePotentialClickbait(item) - Math.min(freshnessHours, 8) * 0.2
+  return categoryWeight * 3 + scorePotentialClickbait(item) - Math.min(freshnessHours, 8) * 0.2 - foreignPenalty
 }
 
 async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
@@ -454,6 +466,8 @@ function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterIt
     .map((item): (ClickbaitBusterItem & { heuristicScore: number }) | null => {
       const answer = deriveClickbaitFallbackAnswerFromContext(item, item.articleContext)
       if (!answer || !isValidClickbaitAnswer(answer)) return null
+      const heuristicScore = heuristicImportanceScore(item)
+      if (heuristicScore < 6) return null
 
       return {
         id: `${item.sourceId}:${item.link}`,
@@ -462,7 +476,7 @@ function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterIt
         source: item.source,
         url: item.link,
         imageUrl: item.imageUrl,
-        heuristicScore: heuristicImportanceScore(item),
+        heuristicScore,
       }
     })
     .filter((item): item is ClickbaitBusterItem & { heuristicScore: number } => item !== null)
