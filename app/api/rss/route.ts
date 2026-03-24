@@ -17,17 +17,10 @@ export async function GET(request: Request) {
     // Cluster similar news
     const clusters = clusterNews(allItems)
     
-    // Format response
-    const clusteredNews = Array.from(clusters.entries())
-      .map(([id, items]) => ({
-        id,
-        topic: items[0].title,
-        articles: items,
-        sourcesCount: new Set(items.map(i => i.sourceId)).size
-      }))
-      .filter(cluster => cluster.sourcesCount >= 2) // Only clusters with 2+ sources
+    const clusteredNews = clusters
+      .filter(cluster => cluster.sourcesCount >= 2)
       .sort((a, b) => b.sourcesCount - a.sourcesCount)
-      .slice(0, 20) // Top 20 clusters
+      .slice(0, 20)
 
     return NextResponse.json({
       success: true,
@@ -35,8 +28,10 @@ export async function GET(request: Request) {
       sources: results.map(r => ({
         id: r.source.id,
         name: r.source.name,
+        enabled: r.source.enabled !== false,
         itemCount: r.items.length,
-        error: r.error
+        error: r.error,
+        notes: r.source.notes,
       })),
       clusters: clusteredNews,
       totalArticles: allItems.length,

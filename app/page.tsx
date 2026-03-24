@@ -2,23 +2,10 @@ import { Header } from "@/components/header"
 import { ArticleCard } from "@/components/article-card"
 import { mockArticles } from "@/lib/mock-data"
 import { Separator } from "@/components/ui/separator"
-
-async function getArticles() {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/articles`, {
-      cache: "no-store"
-    })
-    if (!res.ok) throw new Error("Failed to fetch articles")
-    const { articles } = await res.json()
-    return articles || []
-  } catch (error) {
-    console.log("[v0] Using mock data - database not initialized yet")
-    return mockArticles
-  }
-}
+import { listPublishedArticles } from "@/lib/articles"
 
 export default async function HomePage() {
-  const articles = await getArticles()
+  const { articles } = await listPublishedArticles()
   
   // Fallback to mock if no articles in DB
   const displayArticles = articles.length > 0 ? articles : mockArticles

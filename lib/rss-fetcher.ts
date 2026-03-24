@@ -1,13 +1,5 @@
-import { NEWS_SOURCES, type NewsSource } from './sources'
-
-export interface RSSItem {
-  title: string
-  link: string
-  description: string
-  pubDate: string
-  source: string
-  sourceId: string
-}
+import { getEnabledSources, NEWS_SOURCES, type NewsSource } from "./sources"
+import type { NewsCluster, RSSItem } from "./types"
 
 export interface FetchResult {
   source: NewsSource
@@ -15,162 +7,329 @@ export interface FetchResult {
   error?: string
 }
 
-// Simple XML parser for RSS feeds
-function parseRSSXML(xml: string, source: NewsSource): RSSItem[] {
-  const items: RSSItem[] = []
-  
-  // Extract items using regex (simple approach for MVP)
-  const itemRegex = /<item>([\s\S]*?)<\/item>/gi
-  let match
+const FETCH_TIMEOUT_MS = 15000
+const MAX_ITEMS_PER_SOURCE = 25
+const CLUSTER_TIME_WINDOW_MS = 36 * 60 * 60 * 1000
 
-  while ((match = itemRegex.exec(xml)) !== null) {
-    const itemContent = match[1]
-    
-    const title = extractTag(itemContent, 'title')
-    const link = extractTag(itemContent, 'link')
-    const description = extractTag(itemContent, 'description')
-    const pubDate = extractTag(itemContent, 'pubDate')
+const STOPWORDS = new Set([
+  "a", "al", "ante", "ayer", "bajo", "como", "con", "contra", "cuál", "cuales",
+  "cuándo", "de", "del", "desde", "donde", "dos", "el", "ella", "ellas", "ellos",
+  "en", "entre", "era", "es", "esa", "ese", "eso", "esta", "este", "esto", "fue",
+  "fueron", "hay", "hoy", "la", "las", "lo", "los", "más", "menos", "mi", "mis",
+  "mientras", "muy", "no", "o", "para", "pero", "por", "qué", "que", "quien",
+  "quienes", "se", "según", "ser", "sin", "sobre", "su", "sus", "tras", "un",
+  "una", "uno", "unos", "unas", "ya"
+])
 
-    if (title && link) {
-      items.push({
-        title: cleanText(title),
-        link,
-        description: cleanText(description || ''),
-        pubDate: pubDate || new Date().toISOString(),
-        source: source.name,
-        sourceId: source.id
-      })
-    }
-  }
-
-  return items
-}
-
-function extractTag(content: string, tag: string): string | null {
-  // Handle CDATA
-  const cdataRegex = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, 'i')
-  const cdataMatch = content.match(cdataRegex)
-  if (cdataMatch) return cdataMatch[1]
-
-  // Handle regular content
-  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')
-  const match = content.match(regex)
-  return match ? match[1] : null
+function normalizeText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
 }
 
 function cleanText(text: string): string {
   return text
-    .replace(/<!\[CDATA\[/g, '')
-    .replace(/\]\]>/g, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
+    .replace(/<!\[CDATA\[/g, "")
+    .replace(/\]\]>/g, "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
     .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
 }
 
+function extractTag(content: string, tag: string): string | null {
+  const cdataRegex = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, "i")
+  const cdataMatch = content.match(cdataRegex)
+  if (cdataMatch) return cdataMatch[1]
+
+  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i")
+  const match = content.match(regex)
+  return match ? match[1] : null
+}
+
+function extractAtomLink(content: string): string | null {
+  const match = content.match(/<link[^>]+href=["']([^"']+)["'][^>]*\/?>/i)
+  return match ? match[1] : null
+}
+
+function extractLink(content: string): string | null {
+  return extractTag(content, "link") || extractAtomLink(content)
+}
+
+function extractItems(xml: string): string[] {
+  const itemMatches = [...xml.matchAll(/<item\b[\s\S]*?<\/item>/gi)].map(match => match[0])
+  if (itemMatches.length > 0) return itemMatches
+
+  return [...xml.matchAll(/<entry\b[\s\S]*?<\/entry>/gi)].map(match => match[0])
+}
+
+function parseRSSXML(xml: string, source: NewsSource): RSSItem[] {
+  const parsedItems: Array<RSSItem | null> = extractItems(xml)
+    .map(itemContent => {
+      const title = cleanText(extractTag(itemContent, "title") || "")
+      const link = extractLink(itemContent)
+      const description = cleanText(
+        extractTag(itemContent, "description") ||
+        extractTag(itemContent, "summary") ||
+        extractTag(itemContent, "content") ||
+        ""
+      )
+      const pubDate = extractTag(itemContent, "pubDate") ||
+        extractTag(itemContent, "published") ||
+        extractTag(itemContent, "updated") ||
+        new Date().toISOString()
+
+      if (!title || !link) return null
+
+      return {
+        title,
+        link,
+        description,
+        pubDate,
+        source: source.name,
+        sourceId: source.id,
+      }
+    })
+
+  return parsedItems.filter((item): item is RSSItem => item !== null)
+}
+
+function dedupeItems(items: RSSItem[]): RSSItem[] {
+  const seen = new Set<string>()
+
+  return items.filter(item => {
+    const key = `${item.sourceId}:${item.link}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function tokenize(text: string): string[] {
+  return normalizeText(text)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(token => token.length > 2 && !STOPWORDS.has(token))
+}
+
+function toKeywordSet(item: RSSItem): Set<string> {
+  return new Set(tokenize(`${item.title} ${item.description}`))
+}
+
+function getNumberTokens(item: RSSItem): Set<string> {
+  const matches = `${item.title} ${item.description}`.match(/\b\d+[.,]?\d*\b/g)
+  return new Set(matches || [])
+}
+
+function overlapScore(setA: Set<string>, setB: Set<string>): number {
+  if (setA.size === 0 || setB.size === 0) return 0
+
+  const intersection = [...setA].filter(token => setB.has(token)).length
+  const union = new Set([...setA, ...setB]).size
+  return union === 0 ? 0 : intersection / union
+}
+
+function countSharedTokens(setA: Set<string>, setB: Set<string>): number {
+  return [...setA].filter(token => setB.has(token)).length
+}
+
+function isWithinWindow(left: string, right: string): boolean {
+  const leftTime = new Date(left).getTime()
+  const rightTime = new Date(right).getTime()
+
+  if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) return true
+  return Math.abs(leftTime - rightTime) <= CLUSTER_TIME_WINDOW_MS
+}
+
+interface MutableCluster {
+  id: string
+  items: RSSItem[]
+  keywordSet: Set<string>
+  numberSet: Set<string>
+  canonicalTitle: string
+  firstPublishedAt: string
+  lastPublishedAt: string
+}
+
+function findBestCluster(item: RSSItem, clusters: MutableCluster[]): MutableCluster | null {
+  const itemKeywords = toKeywordSet(item)
+  const itemNumbers = getNumberTokens(item)
+
+  let bestMatch: MutableCluster | null = null
+  let bestScore = 0
+
+  for (const cluster of clusters) {
+    const hasSameSource = cluster.items.some(clusterItem => clusterItem.sourceId === item.sourceId)
+    if (hasSameSource) continue
+    if (!isWithinWindow(item.pubDate, cluster.lastPublishedAt)) continue
+
+    const keywordOverlap = overlapScore(itemKeywords, cluster.keywordSet)
+    const sharedTokens = countSharedTokens(itemKeywords, cluster.keywordSet)
+    const numberOverlap = overlapScore(itemNumbers, cluster.numberSet)
+
+    const score = keywordOverlap * 0.75 + numberOverlap * 0.25
+
+    if ((sharedTokens >= 3 && score >= 0.28) || score >= 0.42) {
+      if (score > bestScore) {
+        bestScore = score
+        bestMatch = cluster
+      }
+    }
+  }
+
+  return bestMatch
+}
+
+function mergeIntoCluster(cluster: MutableCluster, item: RSSItem) {
+  cluster.items.push(item)
+
+  for (const token of toKeywordSet(item)) {
+    cluster.keywordSet.add(token)
+  }
+
+  for (const numberToken of getNumberTokens(item)) {
+    cluster.numberSet.add(numberToken)
+  }
+
+  if (item.title.length > cluster.canonicalTitle.length) {
+    cluster.canonicalTitle = item.title
+  }
+
+  if (new Date(item.pubDate).getTime() < new Date(cluster.firstPublishedAt).getTime()) {
+    cluster.firstPublishedAt = item.pubDate
+  }
+
+  if (new Date(item.pubDate).getTime() > new Date(cluster.lastPublishedAt).getTime()) {
+    cluster.lastPublishedAt = item.pubDate
+  }
+}
+
+function rankKeywords(cluster: MutableCluster): string[] {
+  const counts = new Map<string, number>()
+
+  for (const item of cluster.items) {
+    for (const token of new Set(tokenize(item.title))) {
+      counts.set(token, (counts.get(token) || 0) + 1)
+    }
+  }
+
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 6)
+    .map(([token]) => token)
+}
+
 export async function fetchRSSFeed(source: NewsSource): Promise<FetchResult> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
   try {
     const response = await fetch(source.rssUrl, {
-      next: { revalidate: 300 }, // Cache for 5 minutes
+      cache: "no-store",
+      signal: controller.signal,
       headers: {
-        'User-Agent': 'DiarioImparcial/1.0 (news aggregator)',
-      }
+        "User-Agent": "DiarioImparcial/1.0 (+https://diarioimparcial.vercel.app)",
+        "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+      },
     })
 
     if (!response.ok) {
       return {
         source,
         items: [],
-        error: `HTTP ${response.status}: ${response.statusText}`
+        error: `HTTP ${response.status}: ${response.statusText}`,
       }
     }
 
     const xml = await response.text()
-    const items = parseRSSXML(xml, source)
+    const items = dedupeItems(parseRSSXML(xml, source)).slice(0, MAX_ITEMS_PER_SOURCE)
 
-    return {
-      source,
-      items: items.slice(0, 20) // Limit to 20 items per source
+    if (items.length === 0) {
+      return {
+        source,
+        items: [],
+        error: "Feed responded but no RSS items were parsed",
+      }
     }
+
+    return { source, items }
   } catch (error) {
     return {
       source,
       items: [],
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     }
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
 export async function fetchAllFeeds(sourceIds?: string[]): Promise<FetchResult[]> {
-  const sources = sourceIds 
-    ? NEWS_SOURCES.filter(s => sourceIds.includes(s.id))
-    : NEWS_SOURCES.filter(s => s.priority === 'high')
+  const availableSources = sourceIds && sourceIds.length > 0
+    ? NEWS_SOURCES.filter(source => source.enabled !== false && sourceIds.includes(source.id))
+    : getEnabledSources().filter(source => source.priority !== "low")
 
-  const results = await Promise.allSettled(
-    sources.map(source => fetchRSSFeed(source))
-  )
+  const results = await Promise.allSettled(availableSources.map(source => fetchRSSFeed(source)))
 
   return results.map((result, index) => {
-    if (result.status === 'fulfilled') {
-      return result.value
-    }
+    if (result.status === "fulfilled") return result.value
+
     return {
-      source: sources[index],
+      source: availableSources[index],
       items: [],
-      error: 'Failed to fetch'
+      error: "Failed to fetch feed",
     }
   })
 }
 
-// Cluster similar news items based on title similarity
-export function clusterNews(allItems: RSSItem[]): Map<string, RSSItem[]> {
-  const clusters = new Map<string, RSSItem[]>()
-  
-  // Simple clustering based on keyword overlap
-  // In production, use proper NLP/embeddings
-  for (const item of allItems) {
-    const keywords = extractKeywords(item.title)
-    let foundCluster = false
+export function clusterNews(allItems: RSSItem[]): NewsCluster[] {
+  const sortedItems = dedupeItems(allItems).sort(
+    (left, right) => new Date(left.pubDate).getTime() - new Date(right.pubDate).getTime()
+  )
 
-    for (const [clusterId, clusterItems] of clusters) {
-      const clusterKeywords = extractKeywords(clusterItems[0].title)
-      const overlap = calculateOverlap(keywords, clusterKeywords)
-      
-      if (overlap > 0.4) { // 40% keyword overlap threshold
-        clusterItems.push(item)
-        foundCluster = true
-        break
-      }
+  const clusters: MutableCluster[] = []
+
+  for (const item of sortedItems) {
+    const match = findBestCluster(item, clusters)
+
+    if (match) {
+      mergeIntoCluster(match, item)
+      continue
     }
 
-    if (!foundCluster) {
-      clusters.set(item.link, [item])
-    }
+    clusters.push({
+      id: item.link,
+      items: [item],
+      keywordSet: toKeywordSet(item),
+      numberSet: getNumberTokens(item),
+      canonicalTitle: item.title,
+      firstPublishedAt: item.pubDate,
+      lastPublishedAt: item.pubDate,
+    })
   }
 
   return clusters
-}
-
-function extractKeywords(text: string): Set<string> {
-  const stopwords = new Set([
-    'el', 'la', 'los', 'las', 'de', 'del', 'en', 'a', 'y', 'que', 'para',
-    'por', 'con', 'un', 'una', 'su', 'se', 'es', 'al', 'como', 'mas', 'sobre'
-  ])
-  
-  return new Set(
-    text.toLowerCase()
-      .replace(/[^\w\s]/g, '')
-      .split(/\s+/)
-      .filter(word => word.length > 3 && !stopwords.has(word))
-  )
-}
-
-function calculateOverlap(set1: Set<string>, set2: Set<string>): number {
-  const intersection = new Set([...set1].filter(x => set2.has(x)))
-  const union = new Set([...set1, ...set2])
-  return intersection.size / union.size
+    .map(cluster => ({
+      id: cluster.id,
+      topic: cluster.canonicalTitle,
+      canonicalTitle: cluster.canonicalTitle,
+      articles: cluster.items.sort(
+        (left, right) => new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime()
+      ),
+      sourcesCount: new Set(cluster.items.map(item => item.sourceId)).size,
+      keywords: rankKeywords(cluster),
+      firstPublishedAt: cluster.firstPublishedAt,
+      lastPublishedAt: cluster.lastPublishedAt,
+    }))
+    .sort((left, right) => {
+      if (right.sourcesCount !== left.sourcesCount) return right.sourcesCount - left.sourcesCount
+      if (right.articles.length !== left.articles.length) return right.articles.length - left.articles.length
+      return new Date(right.lastPublishedAt).getTime() - new Date(left.lastPublishedAt).getTime()
+    })
 }

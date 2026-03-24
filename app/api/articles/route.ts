@@ -1,9 +1,9 @@
-import { getArticles } from "@/lib/supabase-admin";
+import { listPublishedArticles } from "@/lib/articles";
 
 export async function GET() {
   try {
-    const articles = await getArticles();
-    return Response.json({ articles });
+    const result = await listPublishedArticles();
+    return Response.json(result);
   } catch (error) {
     console.error("[v0] Error fetching articles:", error);
     return Response.json(

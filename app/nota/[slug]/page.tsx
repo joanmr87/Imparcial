@@ -2,8 +2,8 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Header } from "@/components/header"
 import { TransparencyPanel } from "@/components/transparency-panel"
-import { getArticleBySlug as getArticleFromMock, mockArticles } from "@/lib/mock-data"
-import { getArticleBySlug as getArticleFromDB } from "@/lib/supabase-admin"
+import { mockArticles } from "@/lib/mock-data"
+import { findPublishedArticleBySlug } from "@/lib/articles"
 import { Separator } from "@/components/ui/separator"
 
 interface ArticlePageProps {
@@ -19,20 +19,13 @@ export async function generateStaticParams() {
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params
   
-  // Try to get from database first
-  let article
-  try {
-    article = await getArticleFromDB(slug)
-  } catch (error) {
-    console.log("[v0] Database not initialized, using mock data")
-    article = getArticleFromMock(slug)
-  }
+  const { article } = await findPublishedArticleBySlug(slug)
 
   if (!article) {
     notFound()
   }
 
-  const formattedDate = new Date(article.published_at || article.createdAt).toLocaleDateString('es-AR', {
+  const formattedDate = new Date(article.createdAt).toLocaleDateString('es-AR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -73,7 +66,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               </p>
 
               <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground">
-                <time dateTime={article.published_at || article.createdAt}>{formattedDate}</time>
+                <time dateTime={article.createdAt}>{formattedDate}</time>
                 <span className="text-border">|</span>
                 <span>{sourceCount} fuentes</span>
               </div>
@@ -142,7 +135,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 Esta nota fue generada automaticamente por inteligencia artificial siguiendo las reglas editoriales de Diario Imparcial. Los hechos fueron extraidos de {sourceCount} fuentes y verificados por contraste. Las discrepancias entre fuentes se senalan en el panel lateral.
               </p>
               <p className="mt-4 text-xs text-muted-foreground">
-                Actualizado: {new Date(article.updated_at || article.updatedAt).toLocaleString('es-AR', {
+                Actualizado: {new Date(article.updatedAt).toLocaleString('es-AR', {
                   day: 'numeric',
                   month: 'long',
                   hour: '2-digit',
