@@ -63,7 +63,7 @@ export function ClickbaitBusters({ items }: ClickbaitBustersProps) {
                 <p className="text-[11px] tracking-[0.18em] text-stone-400 uppercase">
                   Lo que querías saber
                 </p>
-                <p className="mt-2 text-lg font-semibold leading-tight">
+                <p className="mt-2 line-clamp-2 text-2xl font-semibold leading-tight text-pretty">
                   {item.answer}
                 </p>
               </div>
