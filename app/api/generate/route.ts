@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const result = await generatePipelineRun({
       sourceIds: body.sourceIds,
       minSources: body.minSources ?? 2,
-      limit: body.limit ?? 6,
+      limit: body.limit ?? 12,
       generateArticles: body.generateArticles ?? true,
       persist: body.persist ?? false,
     })

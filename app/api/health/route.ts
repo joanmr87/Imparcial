@@ -15,7 +15,7 @@ export async function GET() {
         hasSupabaseAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
         hasSupabaseServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
         hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY),
-        openAIModel: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        openAIModel: process.env.OPENAI_MODEL || "gpt-5-nano",
       },
       editorialSchema,
       pipelineSchema,

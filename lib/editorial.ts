@@ -7,6 +7,9 @@ const editorialSchema = z.object({
   title: z.string().describe("Titulo neutral y descriptivo"),
   summary: z.string().describe("Resumen de 2 a 3 oraciones, sin opinion ni adjetivos valorativos"),
   category: z.string().describe("Categoria periodistica principal"),
+  bodyParagraphs: z.array(
+    z.string().describe("Parrafo breve y claro para una lectura fluida, con tono periodistico neutral")
+  ).min(3).max(6),
   facts: z.array(
     z.object({
       text: z.string().describe("Hecho puntual redactado de forma neutral"),
@@ -46,6 +49,11 @@ Reglas obligatorias:
 - El titulo debe sonar periodistico, no promocional.
 - El resumen debe poder publicarse tal cual en portada.
 - Usa categorias periodisticas habituales en Argentina.
+- La lectura debe sentirse clara, ordenada y humana, no como un acta tecnica.
+- Abre con 3 a 6 parrafos cortos que expliquen rapidamente que paso, quien intervino y por que importa hoy.
+- Evita repetir formulas como "segun" al inicio de todas las oraciones; alterna estructuras pero manteniendo la atribucion cuando haga falta.
+- Si una fuente aporta contexto y otra aporta el hecho puntual, integralos sin perder trazabilidad.
+- No conviertas toda la nota en listas: usa listas solo para hechos confirmados y discrepancias.
 `
 
 function generateSlug(title: string): string {
@@ -71,13 +79,14 @@ function determineStatus(facts: Array<{ status: FactStatus }>): ArticleStatus {
 function buildContent(article: z.infer<typeof editorialSchema>): string {
   const sections: string[] = []
 
+  sections.push(article.bodyParagraphs.join("\n\n"))
   sections.push("**Hechos confirmados o reportados por las fuentes:**")
   sections.push(article.facts.map(fact => `- ${fact.text}`).join("\n"))
 
   sections.push("**Informacion atribuida:**")
   sections.push(
     article.attributedReporting
-      .map(item => `Segun ${item.source}, ${item.claim}.`)
+      .map(item => `${item.source}: ${item.claim}.`)
       .join("\n\n")
   )
 
@@ -114,7 +123,7 @@ export async function generateImpartialArticle(
     throw new Error("Missing OPENAI_API_KEY")
   }
 
-  const modelId = process.env.OPENAI_MODEL || "gpt-4o-mini"
+  const modelId = process.env.OPENAI_MODEL || "gpt-5-nano"
   const formattedSources = articles
     .map((article, index) => {
       return [

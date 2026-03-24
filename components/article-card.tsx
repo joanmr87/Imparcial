@@ -6,6 +6,29 @@ interface ArticleCardProps {
   variant?: "featured" | "large" | "medium" | "small" | "minimal"
 }
 
+function sourceTags(article: ImpartialArticle) {
+  return [...new Set(article.sources.map(source => source.name))].slice(0, 5)
+}
+
+function SourceTagList({ article }: { article: ImpartialArticle }) {
+  const tags = sourceTags(article)
+
+  if (tags.length === 0) return null
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {tags.map(tag => (
+        <span
+          key={tag}
+          className="rounded-full border border-border px-2.5 py-1 text-[11px] tracking-wide text-muted-foreground"
+        >
+          {tag}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
   const authorLine = `${article.sourceCount} fuentes`
 
@@ -25,6 +48,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
           <p className="mt-4 text-xs text-muted-foreground">
             {authorLine}
           </p>
+          <SourceTagList article={article} />
         </article>
       </Link>
     )
@@ -46,6 +70,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
           <p className="mt-3 text-xs text-muted-foreground">
             {authorLine}
           </p>
+          <SourceTagList article={article} />
         </article>
       </Link>
     )
@@ -64,6 +89,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
           <p className="mt-2 text-xs text-muted-foreground">
             {authorLine}
           </p>
+          <SourceTagList article={article} />
         </article>
       </Link>
     )
@@ -83,6 +109,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
             <p className="mt-1 text-xs text-muted-foreground">
               {authorLine}
             </p>
+            <SourceTagList article={article} />
           </div>
         </article>
       </Link>
@@ -105,6 +132,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
         <p className="mt-3 text-xs text-muted-foreground">
           {authorLine}
         </p>
+        <SourceTagList article={article} />
       </article>
     </Link>
   )

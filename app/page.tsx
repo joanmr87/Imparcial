@@ -3,6 +3,7 @@ import { ArticleCard } from "@/components/article-card"
 import { mockArticles } from "@/lib/mock-data"
 import { Separator } from "@/components/ui/separator"
 import { listPublishedArticles } from "@/lib/articles"
+import Link from "next/link"
 
 export default async function HomePage() {
   const { articles } = await listPublishedArticles()
@@ -74,6 +75,46 @@ export default async function HomePage() {
                 <span className="block font-serif text-2xl font-semibold text-foreground">0</span>
                 <span>Adjetivos</span>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-16 rounded-[2rem] border border-border bg-card/40 px-6 py-8 md:px-10">
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+            <div>
+              <p className="text-xs tracking-widest text-muted-foreground uppercase">
+                Que es El Imparcial
+              </p>
+              <h2 className="mt-3 font-serif text-3xl font-semibold text-foreground">
+                Un diario hecho para leer lo importante sin casarte con una sola voz
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
+                Cuando una noticia importa de verdad, casi nunca aparece en un solo medio. El Imparcial toma
+                varias coberturas, detecta qué cuentan sobre el mismo hecho y construye una versión nueva,
+                más clara y más fácil de leer.
+              </p>
+              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
+                La idea no es borrar las diferencias entre diarios, sino exponerlas con orden: qué comparten,
+                qué atribuye cada uno y en qué puntos no dicen lo mismo.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-border bg-background/70 p-5">
+              <p className="text-xs tracking-widest text-muted-foreground uppercase">
+                Como funciona
+              </p>
+              <ol className="mt-4 space-y-3 text-sm text-foreground/80">
+                <li>1. Leemos varios diarios varias veces por día.</li>
+                <li>2. Agrupamos notas sobre el mismo acontecimiento.</li>
+                <li>3. La IA ordena hechos, atribuciones y discrepancias.</li>
+                <li>4. Publicamos una versión nueva con trazabilidad visible.</li>
+              </ol>
+              <Link
+                href="/metodologia"
+                className="mt-5 inline-flex rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+              >
+                Ver la metodología completa
+              </Link>
             </div>
           </div>
         </section>

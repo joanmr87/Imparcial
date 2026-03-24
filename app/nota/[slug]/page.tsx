@@ -33,6 +33,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   })
 
   const sourceCount = article.sources?.length || article.sourceCount || 3
+  const sourceTags = [...new Set((article.sources || []).map(source => source.name))]
 
   return (
     <div className="min-h-screen bg-background">
@@ -70,6 +71,19 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 <span className="text-border">|</span>
                 <span>{sourceCount} fuentes</span>
               </div>
+
+              {sourceTags.length > 0 && (
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {sourceTags.map(source => (
+                    <span
+                      key={source}
+                      className="rounded-full border border-border px-3 py-1 text-[11px] tracking-wide text-muted-foreground"
+                    >
+                      {source}
+                    </span>
+                  ))}
+                </div>
+              )}
             </header>
 
             <Separator className="mb-10" />
