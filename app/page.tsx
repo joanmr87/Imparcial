@@ -16,7 +16,7 @@ interface HomePageProps {
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = searchParams ? await searchParams : undefined
   const activeSection = normalizeSectionSlug(params?.seccion)
-  const { articles, sections, warning, activeSectionLabel } = await getHomepageEdition(activeSection)
+  const { articles, sections, activeSectionLabel } = await getHomepageEdition(activeSection)
 
   const featured = articles[0]
   const secondary = articles.slice(1, 3)
@@ -51,16 +51,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </section>
         )}
 
-        {warning && (
-          <section className="mb-8 rounded-[1.5rem] border border-border bg-card/30 px-5 py-4">
-            <p className="text-xs tracking-widest text-muted-foreground uppercase">
-              Estado editorial
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              {warning}
-            </p>
-          </section>
-        )}
+        <section className="mb-8 rounded-[1.5rem] border border-border bg-card/30 px-5 py-4">
+          <p className="text-xs tracking-widest text-muted-foreground uppercase">
+            Como se hace esta edicion
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Diario generado íntegramente con IA. Toma información pública de distintos medios, cruza coberturas sobre el mismo hecho y publica una síntesis que busca reducir el sesgo de una sola mirada.
+          </p>
+        </section>
 
         <div className="grid gap-10 lg:grid-cols-3 lg:gap-12">
           <div className="lg:col-span-2">
