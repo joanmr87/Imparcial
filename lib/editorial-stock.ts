@@ -21,6 +21,6 @@ async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
 
 export const getGeneratedEditorialStock = unstable_cache(
   buildGeneratedEditorialStock,
-  ["generated-editorial-stock"],
+  ["generated-editorial-stock-v2"],
   { revalidate: 60 * 30 }
 )

@@ -299,6 +299,6 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
 
 export const getClickbaitBusters = unstable_cache(
   buildClickbaitBusters,
-  ["clickbait-busters"],
-  { revalidate: 60 * 60 * 3 }
+  ["clickbait-busters-v2"],
+  { revalidate: 60 * 30 }
 )
