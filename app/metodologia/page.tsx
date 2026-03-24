@@ -6,7 +6,7 @@ const promises = [
   "No parte de una sola voz: cada nota nace del cruce de varios medios.",
   "Distingue entre hechos compartidos, datos atribuidos y puntos en disputa.",
   "Muestra de qué diarios salió la información para que el lector pueda revisar el origen.",
-  "Usa IA para ordenar, comparar y redactar, no para inventar.",
+  "Se genera íntegramente con IA, pero con trazabilidad sobre cada fuente utilizada.",
 ]
 
 const steps = [
@@ -53,6 +53,10 @@ export default function MethodologyPage() {
             Entonces hacemos algo distinto. Escuchamos varias coberturas, cruzamos lo que dicen,
             separamos coincidencias de diferencias y publicamos una síntesis periodística, pensada para leer mejor,
             entender más rápido y depender menos de la mirada de un solo medio.
+          </p>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+            Todo el proceso está generado con IA: la detección de coincidencias entre medios, la comparación de enfoques,
+            la redacción de las síntesis y la selección de la información más útil para portada.
           </p>
         </section>
 

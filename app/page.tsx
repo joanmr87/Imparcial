@@ -102,13 +102,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </aside>
         </div>
 
+        <ClickbaitBustersSection />
+
         <section className="mt-16 border-t border-border pt-10">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="font-serif text-2xl font-semibold text-foreground">
               Sobre Diario Imparcial
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Cada nota cruza varias coberturas del mismo hecho y después ordena qué está confirmado, qué queda atribuido y en qué difieren los medios. El sitio ya no deriva a notas ajenas: la idea es que todo lo que leas acá sea una síntesis construida a partir de varios medios.
+              Diario Imparcial es un diario generado íntegramente con IA a partir de múltiples coberturas sobre un mismo hecho. Cada síntesis ordena qué está confirmado, qué queda atribuido y en qué difieren los medios.
             </p>
             <div className="mt-6 flex items-center justify-center gap-8 text-xs text-muted-foreground">
               <div>
@@ -148,6 +150,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 más clara y más fácil de leer.
               </p>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
+                Todo el diario se produce con IA: desde la detección de coincidencias entre medios hasta la redacción de cada síntesis y la selección de los titulares clickbait que vale la pena desarmar.
+              </p>
+              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
                 La idea no es borrar las diferencias entre diarios, sino exponerlas con orden: qué comparten,
                 qué atribuye cada uno y en qué puntos no dicen lo mismo.
               </p>
@@ -161,7 +166,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 <li>1. Leemos varios diarios varias veces por día.</li>
                 <li>2. Detectamos temas repetidos entre al menos dos medios.</li>
                 <li>3. El sistema editorial arma una síntesis trazable a partir de esas coincidencias.</li>
-                <li>4. La portada muestra solo síntesis construidas desde varios medios, nunca links que te saquen del diario.</li>
+                <li>4. La portada muestra solo síntesis generadas con IA desde varios medios, nunca links que te saquen del diario.</li>
               </ol>
               <Link
                 href="/metodologia"
@@ -173,7 +178,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
         </section>
 
-        <ClickbaitBustersSection />
       </main>
 
       <footer className="border-t border-border">
@@ -188,7 +192,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Las notas se producen con un sistema editorial automatizado y reglas publicas de trazabilidad.
+              Diario generado íntegramente con IA y reglas públicas de trazabilidad editorial.
             </p>
           </div>
         </div>
