@@ -1,3 +1,4 @@
+import { dedupeSimilarArticles, prioritizeArticleVariety } from "./article-dedup"
 import { listPublishedArticles } from "./articles"
 import { HOME_SECTION_ORDER, inferCategoryFromArticle, normalizeSectionSlug } from "./news-categories"
 import type { ImpartialArticle } from "./types"
@@ -19,12 +20,13 @@ export interface HomepageEdition {
 export async function getHomepageEdition(activeSection?: string | null): Promise<HomepageEdition> {
   const sectionFilter = normalizeSectionSlug(activeSection)
   const published = await listPublishedArticles()
+  const dedupedArticles = prioritizeArticleVariety(dedupeSimilarArticles(published.articles), 18)
 
-  let articles = published.articles
+  let articles = dedupedArticles
   if (sectionFilter) {
     const categoryLabel = HOME_SECTION_ORDER.find(section => section.slug === sectionFilter)?.label
     if (categoryLabel) {
-      articles = published.articles.filter(article => inferCategoryFromArticle(article) === categoryLabel)
+      articles = dedupedArticles.filter(article => inferCategoryFromArticle(article) === categoryLabel)
     }
   }
 
@@ -33,7 +35,7 @@ export async function getHomepageEdition(activeSection?: string | null): Promise
   for (const section of HOME_SECTION_ORDER) {
     if (sectionFilter && section.slug !== sectionFilter) continue
 
-    const categoryArticles = published.articles.filter(article => inferCategoryFromArticle(article) === section.label)
+    const categoryArticles = dedupedArticles.filter(article => inferCategoryFromArticle(article) === section.label)
     if (categoryArticles.length === 0) continue
 
     sections.push({
@@ -45,7 +47,7 @@ export async function getHomepageEdition(activeSection?: string | null): Promise
   }
 
   return {
-    articles: articles.length > 0 ? articles : published.articles,
+    articles: articles.length > 0 ? articles : dedupedArticles,
     source: published.source,
     warning: published.warning,
     sections,

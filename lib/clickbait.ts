@@ -3,6 +3,7 @@ import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { z } from "zod"
 import { getLatestFeedSnapshot } from "./feed-store"
+import { inferCategoryFromItem } from "./news-categories"
 import type { RSSItem } from "./types"
 
 export interface ClickbaitBusterItem {
@@ -101,6 +102,74 @@ function truncateAnswer(answer: string): string {
     .slice(0, 120)
 }
 
+function extractCapitalizedName(description: string): string | null {
+  const match = description.match(/\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b/)
+  return match ? match[1] : null
+}
+
+function cleanShortAnswer(answer: string): string {
+  return answer
+    .split(/\b(si|cuando|mientras|porque)\b/i)[0]
+    .split(/[.,;:]/)[0]
+    .trim()
+}
+
+export function deriveClickbaitFallbackAnswer(item: RSSItem): string | null {
+  const title = normalizeText(item.title)
+  const description = item.description.trim()
+  if (!description) return null
+
+  if (/\ba cuanto\b|\bcuanto cuesta\b/.test(title)) {
+    const amountMatch = description.match(/\$ ?\d[\d\.\,]*/i)
+    return amountMatch ? amountMatch[0] : null
+  }
+
+  if (/\ba que edad\b/.test(title)) {
+    const ageMatch = description.match(/\b\d{1,2}\s+años\b/i)
+    return ageMatch ? ageMatch[0] : null
+  }
+
+  if (/\bdonde\b/.test(title)) {
+    const placeMatch = description.match(/\ben\s+(la|el|los|las)\s+[A-ZÁÉÍÓÚÑa-záéíóúñ0-9\s]{3,50}/)
+    return placeMatch ? cleanShortAnswer(placeMatch[0]) : null
+  }
+
+  if (/\bquien\b|\bquienes\b|\breemplazante\b/.test(title)) {
+    const directCandidate = description.match(/\b(?:a|como)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b/)
+    if (directCandidate) return directCandidate[1]
+    return extractCapitalizedName(description)
+  }
+
+  if (/\brevelo\b|\bconfirmo\b|\banuncio\b/.test(title)) {
+    return extractCapitalizedName(description)
+  }
+
+  if (/\bcuales son los \d+\b/.test(title)) {
+    const countMatch = item.title.match(/\b(\d+)\b/)
+    return countMatch ? `${countMatch[1]} opciones` : null
+  }
+
+  return null
+}
+
+function heuristicImportanceScore(item: RSSItem): number {
+  const category = inferCategoryFromItem(item)
+  const categoryWeight = {
+    Politica: 4,
+    Economia: 4,
+    Sociedad: 3,
+    Deportes: 3,
+    Internacional: 2,
+  }[category] || 1
+
+  const freshnessHours = Math.max(
+    0,
+    (Date.now() - new Date(item.pubDate).getTime()) / (1000 * 60 * 60)
+  )
+
+  return categoryWeight * 3 + scorePotentialClickbait(item) - Math.min(freshnessHours, 8) * 0.2
+}
+
 async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
   const { items } = await getLatestFeedSnapshot()
   const candidates = dedupeCandidates(
@@ -114,7 +183,7 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
       .slice(0, 30)
   )
 
-  if (candidates.length === 0 || !process.env.OPENAI_API_KEY) return []
+  if (candidates.length === 0) return []
 
   const prompt = candidates
     .map((item, index) => [
@@ -127,7 +196,8 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
     ].join("\n"))
     .join("\n\n---\n\n")
 
-  try {
+  if (process.env.OPENAI_API_KEY) {
+    try {
     const { object } = await generateObject({
       model: openai(process.env.OPENAI_MODEL || "gpt-5-nano"),
       schema: clickbaitSelectionSchema,
@@ -180,13 +250,38 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
       })
     }
 
-    return selectedItems
+    const rankedByAi = selectedItems
       .sort((left, right) => right.totalScore - left.totalScore)
       .slice(0, 6)
       .map(({ totalScore: _totalScore, ...item }) => item)
-  } catch {
-    return []
+
+      if (rankedByAi.length > 0) return rankedByAi
+    } catch {
+      // Fallback below.
+    }
   }
+
+  const fallbackItems: ClickbaitBusterItem[] = candidates
+    .map((item): (ClickbaitBusterItem & { heuristicScore: number }) | null => {
+      const answer = deriveClickbaitFallbackAnswer(item)
+      if (!answer) return null
+
+      return {
+        id: `${item.sourceId}:${item.link}`,
+        title: item.title,
+        answer: truncateAnswer(answer),
+        source: item.source,
+        url: item.link,
+        imageUrl: item.imageUrl,
+        heuristicScore: heuristicImportanceScore(item),
+      }
+    })
+    .filter((item): item is ClickbaitBusterItem & { heuristicScore: number } => item !== null)
+    .sort((left, right) => right.heuristicScore - left.heuristicScore)
+    .slice(0, 6)
+    .map(({ heuristicScore: _heuristicScore, ...item }) => item)
+
+  return fallbackItems
 }
 
 export const getClickbaitBusters = unstable_cache(

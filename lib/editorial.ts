@@ -1,6 +1,7 @@
 import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { z } from "zod"
+import { inferCategoryFromItem } from "./news-categories"
 import type { ArticleStatus, FactStatus, ImpartialArticle, SourceArticleInput } from "./types"
 
 const editorialSchema = z.object({
@@ -110,6 +111,171 @@ function buildContent(article: z.infer<typeof editorialSchema>): string {
   return sections.join("\n\n")
 }
 
+function normalizeText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
+function stripHeadlineNoise(title: string): string {
+  return title
+    .replace(/\s+\|\s+.*$/g, "")
+    .replace(/^en vivo:\s*/i, "")
+    .replace(/^ultima? momento:\s*/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}
+
+function clipText(text: string, maxLength: number): string {
+  const clean = text.replace(/\s+/g, " ").trim()
+  if (clean.length <= maxLength) return clean
+  return `${clean.slice(0, maxLength - 1).trimEnd()}…`
+}
+
+function extractDescriptionSentences(articles: SourceArticleInput[]): Array<{
+  text: string
+  source: string
+}> {
+  const seen = new Set<string>()
+  const sentences: Array<{ text: string; source: string }> = []
+
+  for (const article of articles) {
+    const parts = article.description
+      .split(/(?<=[.!?])\s+/)
+      .map(part => part.trim())
+      .filter(part => part.length >= 35)
+
+    for (const part of parts) {
+      const normalized = normalizeText(part)
+      if (seen.has(normalized)) continue
+      seen.add(normalized)
+      sentences.push({
+        text: clipText(part, 220),
+        source: article.source,
+      })
+      if (sentences.length >= 8) return sentences
+    }
+  }
+
+  return sentences
+}
+
+function pickFallbackTitle(topic: string, articles: SourceArticleInput[]): string {
+  const candidates = articles
+    .map(article => stripHeadlineNoise(article.title))
+    .filter(title => title.length >= 20 && !title.includes("?"))
+    .sort((left, right) => right.length - left.length)
+
+  return clipText(candidates[0] || stripHeadlineNoise(topic), 110)
+}
+
+function inferFallbackCategory(articles: SourceArticleInput[]): string {
+  const counts = new Map<string, number>()
+
+  for (const article of articles) {
+    const category = inferCategoryFromItem({
+      ...article,
+      sourceId: article.sourceId || article.source,
+    })
+    counts.set(category, (counts.get(category) || 0) + 1)
+  }
+
+  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || "Sociedad"
+}
+
+function buildFallbackSummary(topic: string, articles: SourceArticleInput[], sentences: Array<{ text: string; source: string }>): string {
+  const sourceNames = [...new Set(articles.map(article => article.source))]
+  const opening = sentences[0]?.text || stripHeadlineNoise(topic)
+  const context = sentences[1]?.text
+
+  return clipText(
+    [
+      opening,
+      context,
+      `La síntesis reúne ${articles.length} publicaciones de ${sourceNames.length} medios para ordenar lo que se sabe hasta ahora.`,
+    ]
+      .filter(Boolean)
+      .join(" "),
+    320
+  )
+}
+
+function buildFallbackBodyParagraphs(topic: string, articles: SourceArticleInput[], sentences: Array<{ text: string; source: string }>): string[] {
+  const sourceNames = [...new Set(articles.map(article => article.source))]
+  const paragraphs = [
+    `Diario Imparcial reconstruyó este tema a partir de ${sourceNames.length} medios que cubrieron ${stripHeadlineNoise(topic).toLowerCase()}. ${sentences[0]?.text || "Las coberturas consultadas coinciden en los elementos principales del hecho."}`,
+    sentences[1]?.text
+      ? `Entre las publicaciones revisadas aparece además este contexto compartido: ${sentences[1].text}`
+      : `Las referencias principales en esta síntesis provienen de ${sourceNames.join(", ")}.`,
+    `La nota se actualiza con nuevas coincidencias entre ${articles.length} publicaciones y deja los links originales como referencia al final.`,
+  ]
+
+  return paragraphs.map(paragraph => clipText(paragraph, 320))
+}
+
+function buildFallbackFacts(
+  sentences: Array<{ text: string; source: string }>
+): Array<{ text: string; confirmedBy: string[]; status: FactStatus }> {
+  return sentences.slice(0, 4).map(sentence => ({
+    text: sentence.text,
+    confirmedBy: [sentence.source],
+    status: "reported",
+  }))
+}
+
+function buildFallbackAttributedReporting(
+  sentences: Array<{ text: string; source: string }>
+): Array<{ source: string; claim: string }> {
+  return sentences.slice(0, 4).map(sentence => ({
+    source: sentence.source,
+    claim: sentence.text,
+  }))
+}
+
+function buildFallbackArticle(topic: string, articles: SourceArticleInput[]): ImpartialArticle {
+  const now = new Date().toISOString()
+  const sentences = extractDescriptionSentences(articles)
+  const title = pickFallbackTitle(topic, articles)
+  const summary = buildFallbackSummary(topic, articles, sentences)
+  const category = inferFallbackCategory(articles)
+  const bodyParagraphs = buildFallbackBodyParagraphs(topic, articles, sentences)
+  const facts = buildFallbackFacts(sentences)
+  const attributedReporting = buildFallbackAttributedReporting(sentences)
+
+  return {
+    id: crypto.randomUUID(),
+    slug: generateSlug(title),
+    title,
+    summary,
+    content: buildContent({
+      title,
+      summary,
+      category,
+      bodyParagraphs,
+      facts,
+      attributedReporting,
+      discrepancies: [],
+    }),
+    facts,
+    discrepancies: [],
+    sources: articles.map((article, index) => ({
+      id: `source-${index + 1}`,
+      name: article.source,
+      url: article.link,
+      publishedAt: article.pubDate,
+      title: article.title,
+      snippet: clipText(article.description, 180),
+    })),
+    sourceCount: new Set(articles.map(article => article.sourceId || article.source)).size,
+    articleCount: articles.length,
+    category,
+    createdAt: now,
+    updatedAt: now,
+    status: determineStatus(facts),
+  }
+}
+
 export async function generateImpartialArticle(
   topic: string,
   articles: SourceArticleInput[]
@@ -121,72 +287,79 @@ export async function generateImpartialArticle(
     totalTokens?: number
   }
 }> {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("Missing OPENAI_API_KEY")
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const modelId = process.env.OPENAI_MODEL || "gpt-5-nano"
+      const formattedSources = articles
+        .map((article, index) => {
+          return [
+            `Fuente ${index + 1}: ${article.source}`,
+            `Titulo: ${article.title}`,
+            `Descripcion: ${article.description || "Sin descripcion disponible"}`,
+            `Publicado: ${article.pubDate}`,
+            `URL: ${article.link}`,
+          ].join("\n")
+        })
+        .join("\n\n---\n\n")
+
+      const { object, usage } = await generateObject({
+        model: openai(modelId),
+        schema: editorialSchema,
+        schemaName: "impartial_article",
+        system: SYSTEM_PROMPT,
+        prompt: [
+          `Tema detectado: ${topic}`,
+          "",
+          `Fuentes disponibles: ${articles.length}`,
+          "",
+          formattedSources,
+        ].join("\n"),
+      })
+
+      const now = new Date().toISOString()
+      const facts = object.facts.map(fact => ({
+        text: fact.text,
+        confirmedBy: fact.confirmedBy,
+        status: fact.status,
+      }))
+
+      return {
+        article: {
+          id: crypto.randomUUID(),
+          slug: generateSlug(object.title),
+          title: object.title,
+          summary: object.summary,
+          content: buildContent(object),
+          facts,
+          discrepancies: object.discrepancies,
+          sources: articles.map((article, index) => ({
+            id: `source-${index + 1}`,
+            name: article.source,
+            url: article.link,
+            publishedAt: article.pubDate,
+            title: article.title,
+            snippet: article.description.slice(0, 180),
+          })),
+          sourceCount: new Set(articles.map(article => article.sourceId || article.source)).size,
+          articleCount: articles.length,
+          category: object.category,
+          createdAt: now,
+          updatedAt: now,
+          status: determineStatus(facts),
+        },
+        usage: {
+          promptTokens: usage.inputTokens,
+          completionTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+        },
+      }
+    } catch {
+      // Fall back to deterministic synthesis below.
+    }
   }
 
-  const modelId = process.env.OPENAI_MODEL || "gpt-5-nano"
-  const formattedSources = articles
-    .map((article, index) => {
-      return [
-        `Fuente ${index + 1}: ${article.source}`,
-        `Titulo: ${article.title}`,
-        `Descripcion: ${article.description || "Sin descripcion disponible"}`,
-        `Publicado: ${article.pubDate}`,
-        `URL: ${article.link}`,
-      ].join("\n")
-    })
-    .join("\n\n---\n\n")
-
-  const { object, usage } = await generateObject({
-    model: openai(modelId),
-    schema: editorialSchema,
-    schemaName: "impartial_article",
-    system: SYSTEM_PROMPT,
-    prompt: [
-      `Tema detectado: ${topic}`,
-      "",
-      `Fuentes disponibles: ${articles.length}`,
-      "",
-      formattedSources,
-    ].join("\n"),
-  })
-
-  const now = new Date().toISOString()
-  const facts = object.facts.map(fact => ({
-    text: fact.text,
-    confirmedBy: fact.confirmedBy,
-    status: fact.status,
-  }))
-
   return {
-    article: {
-      id: crypto.randomUUID(),
-      slug: generateSlug(object.title),
-      title: object.title,
-      summary: object.summary,
-      content: buildContent(object),
-      facts,
-      discrepancies: object.discrepancies,
-      sources: articles.map((article, index) => ({
-        id: `source-${index + 1}`,
-        name: article.source,
-        url: article.link,
-        publishedAt: article.pubDate,
-        title: article.title,
-        snippet: article.description.slice(0, 180),
-      })),
-      sourceCount: new Set(articles.map(article => article.sourceId || article.source)).size,
-      articleCount: articles.length,
-      category: object.category,
-      createdAt: now,
-      updatedAt: now,
-      status: determineStatus(facts),
-    },
-    usage: {
-      promptTokens: usage.inputTokens,
-      completionTokens: usage.outputTokens,
-      totalTokens: usage.totalTokens,
-    },
+    article: buildFallbackArticle(topic, articles),
+    usage: {},
   }
 }

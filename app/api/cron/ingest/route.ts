@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   try {
     const result = await generatePipelineRun({
       minSources: 2,
-      limit: 12,
+      limit: 18,
       generateArticles: true,
       persist: true,
     })

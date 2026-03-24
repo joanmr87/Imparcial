@@ -2,7 +2,7 @@ import { unstable_cache } from "next/cache"
 import { generatePipelineRun } from "./pipeline"
 import type { ImpartialArticle } from "./types"
 
-const GENERATED_STOCK_LIMIT = 12
+const GENERATED_STOCK_LIMIT = 18
 
 async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
   try {

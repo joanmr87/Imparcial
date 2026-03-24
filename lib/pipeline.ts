@@ -16,7 +16,7 @@ export interface GeneratePipelineOptions extends CollectClustersOptions {
 }
 
 export async function collectLatestClusters(options: CollectClustersOptions = {}) {
-  const { sourceIds, minSources = 2, limit = 12 } = options
+  const { sourceIds, minSources = 2, limit = 18 } = options
   const feedResults = await fetchAllFeeds(sourceIds)
   const allItems = feedResults.flatMap(result => result.items)
   const warnings: PipelineWarning[] = feedResults
