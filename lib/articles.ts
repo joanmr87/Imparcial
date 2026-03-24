@@ -1,5 +1,4 @@
 import { getGeneratedEditorialStock } from "./editorial-stock"
-import { getArticleBySlug as getArticleFromMock, mockArticles } from "./mock-data"
 import { inferCategoryFromArticle } from "./news-categories"
 import { getDatabaseArticleBySlug, getDatabaseArticles, isTableMissingError } from "./supabase-admin"
 import type { ImpartialArticle } from "./types"
@@ -21,7 +20,7 @@ function distinctCategories(articles: ImpartialArticle[]): number {
 
 export async function listPublishedArticles(): Promise<{
   articles: ImpartialArticle[]
-  source: "database" | "generated" | "mock"
+  source: "database" | "generated" | "empty"
   warning?: string
 }> {
   try {
@@ -45,38 +44,30 @@ export async function listPublishedArticles(): Promise<{
     }
 
     return {
-      articles: mockArticles,
-      source: "mock",
-      warning: "Database is reachable but empty. Serving mock articles for now.",
+      articles: [],
+      source: "empty",
+      warning: "Todavía no hay síntesis suficientes construidas desde varias coberturas para abrir una edición completa.",
     }
   } catch (error) {
     return {
-      articles: mockArticles,
-      source: "mock",
+      articles: [],
+      source: "empty",
       warning: isTableMissingError(error)
-        ? "Database schema is missing. Serving mock articles."
-        : `Database unavailable: ${(error as Error).message}`,
+        ? "La base editorial todavía no está lista para publicar síntesis desde varias fuentes."
+        : `La base editorial no está disponible: ${(error as Error).message}`,
     }
   }
 }
 
 export async function findPublishedArticleBySlug(slug: string): Promise<{
   article: ImpartialArticle | null
-  source: "database" | "generated" | "mock"
+  source: "database" | "generated" | "empty"
 }> {
   try {
     const article = await getDatabaseArticleBySlug(slug)
     if (article) return { article, source: "database" }
   } catch {
-    // Fall through to mock content.
-  }
-
-  const mockArticle = getArticleFromMock(slug) || null
-  if (mockArticle) {
-    return {
-      article: mockArticle,
-      source: "mock",
-    }
+    // Fall through to generated content.
   }
 
   try {
@@ -86,8 +77,8 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
       return { article: generatedArticle, source: "generated" }
     }
   } catch {
-    // Fall through to mock content.
+    // Fall through to empty content.
   }
 
-  return { article: null, source: "mock" }
+  return { article: null, source: "empty" }
 }

@@ -57,6 +57,8 @@ export function inferCategoryFromItem(item: RSSItem): string {
 
   if (includesAny(text, [
     "/deportes", " seleccion ", "boca", "river", "scaloni", "futbol", "tenis", "basquet", "partido", "liga ",
+    "afa", "messi", "mundial", "libertadores", "copa argentina", "marchesin", "montiel", "giay",
+    "san lorenzo", "huracan", "racing", "independiente", "cerundolo", "etcheverry", "var",
   ])) {
     return "Deportes"
   }

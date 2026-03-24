@@ -19,6 +19,9 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'lanacion',
     name: 'La Nacion',
     rssUrl: 'https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml',
+    rssUrls: [
+      'https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/deportes/?outputType=xml',
+    ],
     website: 'https://www.lanacion.com.ar',
     priority: 'high'
   },
@@ -26,6 +29,9 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'clarin',
     name: 'Clarin',
     rssUrl: 'https://www.clarin.com/rss/lo-ultimo/',
+    rssUrls: [
+      'https://www.clarin.com/rss/deportes/',
+    ],
     website: 'https://www.clarin.com',
     priority: 'high'
   },
@@ -33,6 +39,9 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'tn',
     name: 'TN',
     rssUrl: 'https://tn.com.ar/arc/outboundfeeds/rss/?outputType=xml',
+    rssUrls: [
+      'https://tn.com.ar/arc/outboundfeeds/rss/category/deportes/?outputType=xml',
+    ],
     website: 'https://tn.com.ar',
     priority: 'high'
   },
@@ -40,6 +49,9 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'ambito',
     name: 'Ambito',
     rssUrl: 'https://www.ambito.com/rss/pages/home.xml',
+    rssUrls: [
+      'https://www.ambito.com/rss/pages/deportes.xml',
+    ],
     website: 'https://www.ambito.com',
     priority: 'high',
     category: 'economia'
@@ -65,6 +77,9 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'infobae',
     name: 'Infobae',
     rssUrl: 'https://www.infobae.com/arc/outboundfeeds/rss/',
+    rssUrls: [
+      'https://www.infobae.com/arc/outboundfeeds/rss/category/deportes/?outputType=xml',
+    ],
     website: 'https://www.infobae.com',
     priority: 'medium',
     enabled: true,

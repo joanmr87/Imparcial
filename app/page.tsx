@@ -16,7 +16,7 @@ interface HomePageProps {
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = searchParams ? await searchParams : undefined
   const activeSection = normalizeSectionSlug(params?.seccion)
-  const { articles, sections, warning } = await getHomepageEdition(activeSection)
+  const { articles, sections, warning, activeSectionLabel } = await getHomepageEdition(activeSection)
 
   const featured = articles[0]
   const secondary = articles.slice(1, 3)
@@ -35,10 +35,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="font-serif text-2xl font-semibold text-foreground">
-                  {sections[0]?.label || "Seccion"}
+                  {activeSectionLabel || sections[0]?.label || "Seccion"}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Una portada acotada a esa agenda, sin perder el panorama del resto abajo.
+                  Una edicion enfocada en esa agenda, armada solo con sintesis construidas desde varias coberturas.
                 </p>
               </div>
               <Link
@@ -64,7 +64,21 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
         <div className="grid gap-10 lg:grid-cols-3 lg:gap-12">
           <div className="lg:col-span-2">
-            {featured && <ArticleCard article={featured} variant="featured" />}
+            {featured ? (
+              <ArticleCard article={featured} variant="featured" />
+            ) : activeSection ? (
+              <section className="rounded-[1.5rem] border border-border bg-card/30 px-6 py-8">
+                <p className="text-xs tracking-widest text-muted-foreground uppercase">
+                  Seccion en actualizacion
+                </p>
+                <h3 className="mt-3 font-serif text-2xl font-semibold text-foreground">
+                  {activeSectionLabel || "Esta sección"} todavía no tiene cruces suficientes entre medios
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  El diario publica esta vista solo cuando encuentra varias coberturas sobre un mismo tema. En cuanto entren coincidencias reales, la sección se completa sola.
+                </p>
+              </section>
+            ) : null}
 
             <Separator className="my-8" />
 
@@ -126,11 +140,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 Que es El Imparcial
               </p>
               <h2 className="mt-3 font-serif text-3xl font-semibold text-foreground">
-                Un diario hecho para entender rápido qué pasó, sin depender de la mirada de una sola tapa
+                Un diario para entender con rapidez qué pasó, a partir de varias coberturas
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
                 Cuando una noticia importa de verdad, casi nunca aparece en un solo medio. El Imparcial toma
-                varias coberturas, detecta qué cuentan sobre el mismo hecho y construye una síntesis nueva,
+                varias coberturas, detecta qué cuentan sobre el mismo hecho y construye una síntesis periodística,
                 más clara y más fácil de leer.
               </p>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
@@ -146,7 +160,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <ol className="mt-4 space-y-3 text-sm text-foreground/80">
                 <li>1. Leemos varios diarios varias veces por día.</li>
                 <li>2. Detectamos temas repetidos entre al menos dos medios.</li>
-                <li>3. El sistema editorial arma una síntesis nueva y trazable a partir de esas coincidencias.</li>
+                <li>3. El sistema editorial arma una síntesis trazable a partir de esas coincidencias.</li>
                 <li>4. La portada muestra solo síntesis construidas desde varios medios, nunca links que te saquen del diario.</li>
               </ol>
               <Link

@@ -1,6 +1,6 @@
 import { dedupeSimilarArticles, pickDistinctArticles, prioritizeArticleVariety } from "./article-dedup"
 import { listPublishedArticles } from "./articles"
-import { HOME_SECTION_ORDER, inferCategoryFromArticle, normalizeSectionSlug } from "./news-categories"
+import { HOME_SECTION_ORDER, categoryLabelFromSlug, inferCategoryFromArticle, normalizeSectionSlug } from "./news-categories"
 import type { ImpartialArticle } from "./types"
 
 export interface HomepageSection {
@@ -12,9 +12,10 @@ export interface HomepageSection {
 
 export interface HomepageEdition {
   articles: ImpartialArticle[]
-  source: "database" | "generated" | "mock"
+  source: "database" | "generated" | "empty"
   warning?: string
   sections: HomepageSection[]
+  activeSectionLabel?: string
 }
 
 function interleaveSectionArticles(sections: HomepageSection[], limit: number): ImpartialArticle[] {
@@ -43,15 +44,15 @@ function interleaveSectionArticles(sections: HomepageSection[], limit: number): 
 
 export async function getHomepageEdition(activeSection?: string | null): Promise<HomepageEdition> {
   const sectionFilter = normalizeSectionSlug(activeSection)
+  const activeSectionLabel = sectionFilter ? categoryLabelFromSlug(sectionFilter) : undefined
   const published = await listPublishedArticles()
   const rankedArticles = prioritizeArticleVariety(dedupeSimilarArticles(published.articles), 24)
 
   let articles = rankedArticles
   if (sectionFilter) {
-    const categoryLabel = HOME_SECTION_ORDER.find(section => section.slug === sectionFilter)?.label
-    if (categoryLabel) {
+    if (activeSectionLabel) {
       articles = pickDistinctArticles(
-        rankedArticles.filter(article => inferCategoryFromArticle(article) === categoryLabel),
+        rankedArticles.filter(article => inferCategoryFromArticle(article) === activeSectionLabel),
         12,
         0.36
       )
@@ -68,7 +69,17 @@ export async function getHomepageEdition(activeSection?: string | null): Promise
       5,
       0.36
     )
-    if (categoryArticles.length === 0) continue
+    if (categoryArticles.length === 0) {
+      if (sectionFilter === section.slug) {
+        sections.push({
+          slug: section.slug,
+          label: section.label,
+          lead: undefined,
+          articles: [],
+        })
+      }
+      continue
+    }
 
     sections.push({
       slug: section.slug,
@@ -83,9 +94,10 @@ export async function getHomepageEdition(activeSection?: string | null): Promise
   }
 
   return {
-    articles: articles.length > 0 ? articles : rankedArticles,
+    articles: sectionFilter ? articles : (articles.length > 0 ? articles : rankedArticles),
     source: published.source,
     warning: published.warning,
     sections,
+    activeSectionLabel,
   }
 }

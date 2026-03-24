@@ -23,7 +23,7 @@ const steps = [
   {
     title: "3. La IA ordena el caos",
     body:
-      "Con esas coberturas sobre la mesa, la IA arma una síntesis nueva: más limpia, más clara y sin el ruido que suele meter cada línea editorial.",
+      "Con esas coberturas sobre la mesa, la IA arma una síntesis periodística: más limpia, más clara y sin el ruido que suele meter cada línea editorial.",
   },
   {
     title: "4. La nota muestra su cocina",
@@ -51,7 +51,7 @@ export default function MethodologyPage() {
           </p>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
             Entonces hacemos algo distinto. Escuchamos varias coberturas, cruzamos lo que dicen,
-            separamos coincidencias de diferencias y publicamos una síntesis nueva, pensada para leer mejor,
+            separamos coincidencias de diferencias y publicamos una síntesis periodística, pensada para leer mejor,
             entender más rápido y depender menos de la mirada de un solo medio.
           </p>
         </section>

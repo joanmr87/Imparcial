@@ -2,7 +2,6 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Header } from "@/components/header"
 import { TransparencyPanel } from "@/components/transparency-panel"
-import { mockArticles } from "@/lib/mock-data"
 import { findPublishedArticleBySlug } from "@/lib/articles"
 import { Separator } from "@/components/ui/separator"
 
@@ -11,9 +10,7 @@ interface ArticlePageProps {
 }
 
 export async function generateStaticParams() {
-  return mockArticles.map((article) => ({
-    slug: article.slug,
-  }))
+  return []
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
@@ -146,7 +143,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 Nota de transparencia
               </p>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Esta nota fue armada automaticamente por el sistema editorial de Diario Imparcial a partir de {sourceCount} fuentes. El proceso cruza coberturas sobre el mismo hecho, marca que esta confirmado, que queda atribuido y donde aparecen diferencias entre medios.
+                Esta síntesis fue elaborada automáticamente por el sistema editorial de Diario Imparcial a partir de {sourceCount} fuentes. El proceso cruza coberturas sobre el mismo hecho, marca qué está confirmado, qué queda atribuido y dónde aparecen diferencias entre medios.
               </p>
               <p className="mt-4 text-xs text-muted-foreground">
                 Actualizado: {new Date(article.updatedAt).toLocaleString('es-AR', {

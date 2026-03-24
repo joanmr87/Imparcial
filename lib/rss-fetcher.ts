@@ -1,4 +1,5 @@
 import { getEnabledSources, NEWS_SOURCES, type NewsSource } from "./sources"
+import { inferCategoryFromItem } from "./news-categories"
 import type { NewsCluster, RSSItem } from "./types"
 
 export interface FetchResult {
@@ -175,9 +176,21 @@ interface MutableCluster {
   lastPublishedAt: string
 }
 
+function inferClusterCategory(cluster: MutableCluster): string {
+  const counts = new Map<string, number>()
+
+  for (const item of cluster.items) {
+    const category = inferCategoryFromItem(item)
+    counts.set(category, (counts.get(category) || 0) + 1)
+  }
+
+  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || "Sociedad"
+}
+
 function findBestCluster(item: RSSItem, clusters: MutableCluster[]): MutableCluster | null {
   const itemKeywords = toKeywordSet(item)
   const itemNumbers = getNumberTokens(item)
+  const itemCategory = inferCategoryFromItem(item)
 
   let bestMatch: MutableCluster | null = null
   let bestScore = 0
@@ -187,13 +200,24 @@ function findBestCluster(item: RSSItem, clusters: MutableCluster[]): MutableClus
     if (hasSameSource) continue
     if (!isWithinWindow(item.pubDate, cluster.lastPublishedAt)) continue
 
+    const clusterCategory = inferClusterCategory(cluster)
+    if (itemCategory !== clusterCategory && (itemCategory === "Deportes" || clusterCategory === "Deportes")) {
+      continue
+    }
+
     const keywordOverlap = overlapScore(itemKeywords, cluster.keywordSet)
     const sharedTokens = countSharedTokens(itemKeywords, cluster.keywordSet)
     const numberOverlap = overlapScore(itemNumbers, cluster.numberSet)
+    const isSportsCluster = itemCategory === "Deportes" && clusterCategory === "Deportes"
 
     const score = keywordOverlap * 0.75 + numberOverlap * 0.25
 
-    if ((sharedTokens >= 3 && score >= 0.28) || score >= 0.42) {
+    const matchesDefaultThreshold = (sharedTokens >= 3 && score >= 0.28) || score >= 0.42
+    const matchesSportsThreshold =
+      isSportsCluster &&
+      ((sharedTokens >= 2 && score >= 0.2) || (sharedTokens >= 1 && keywordOverlap >= 0.3 && numberOverlap >= 0.1))
+
+    if (matchesDefaultThreshold || matchesSportsThreshold) {
       if (score > bestScore) {
         bestScore = score
         bestMatch = cluster

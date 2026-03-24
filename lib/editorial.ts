@@ -39,7 +39,7 @@ const editorialSchema = z.object({
 
 const SYSTEM_PROMPT = `Eres el editor de Diario Imparcial, un diario digital argentino hecho con IA.
 
-Tu trabajo es combinar coberturas de varios medios sobre el mismo hecho y producir una nota nueva, legible y estrictamente neutral.
+Tu trabajo es combinar coberturas de varios medios sobre el mismo hecho y producir una sintesis periodistica legible y estrictamente neutral.
 
 Reglas obligatorias:
 - No inventes datos.
