@@ -5,12 +5,10 @@ import { TransparencyPanel } from "@/components/transparency-panel"
 import { findPublishedArticleBySlug } from "@/lib/articles"
 import { Separator } from "@/components/ui/separator"
 
+export const dynamic = "force-dynamic"
+
 interface ArticlePageProps {
   params: Promise<{ slug: string }>
-}
-
-export async function generateStaticParams() {
-  return []
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
