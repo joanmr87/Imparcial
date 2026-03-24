@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache"
 import { generateImpartialArticle } from "./editorial"
 import { inferCategoryFromItem } from "./news-categories"
-import { collectLatestClusters } from "./pipeline"
+import { clusterNews, fetchAllFeeds } from "./rss-fetcher"
 import type { ImpartialArticle, NewsCluster } from "./types"
 
 const GENERATED_STOCK_LIMIT = 18
@@ -55,12 +55,10 @@ export function selectClustersForEditorialStock(clusters: NewsCluster[], limit: 
 
 async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
   try {
-    const collected = await collectLatestClusters({
-      minSources: 2,
-      limit: 40,
-    })
-
-    const selectedClusters = selectClustersForEditorialStock(collected.clusters, GENERATED_STOCK_LIMIT)
+    const feedResults = await fetchAllFeeds()
+    const allItems = feedResults.flatMap(result => result.items)
+    const allClusters = clusterNews(allItems).filter(cluster => cluster.sourcesCount >= 2)
+    const selectedClusters = selectClustersForEditorialStock(allClusters, GENERATED_STOCK_LIMIT)
     const articles = await Promise.all(
       selectedClusters.map(async cluster => {
         const result = await generateImpartialArticle(cluster.topic, cluster.articles, { useAi: false })
