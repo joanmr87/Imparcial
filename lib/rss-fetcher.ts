@@ -43,6 +43,19 @@ function cleanText(text: string): string {
     .trim()
 }
 
+function extractImageUrl(content: string): string | undefined {
+  const mediaContentMatch = content.match(/<media:content[^>]+url=["']([^"']+)["'][^>]*type=["']image\/[^"']+["'][^>]*\/?>/i)
+  if (mediaContentMatch) return mediaContentMatch[1].replace(/&amp;/g, "&")
+
+  const enclosureMatch = content.match(/<enclosure[^>]+url=["']([^"']+)["'][^>]*type=["']image\/[^"']+["'][^>]*\/?>/i)
+  if (enclosureMatch) return enclosureMatch[1].replace(/&amp;/g, "&")
+
+  const imageTagMatch = content.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i)
+  if (imageTagMatch) return imageTagMatch[1].replace(/&amp;/g, "&")
+
+  return undefined
+}
+
 function extractTag(content: string, tag: string): string | null {
   const cdataRegex = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, "i")
   const cdataMatch = content.match(cdataRegex)
@@ -74,16 +87,20 @@ function parseRSSXML(xml: string, source: NewsSource): RSSItem[] {
     .map(itemContent => {
       const title = cleanText(extractTag(itemContent, "title") || "")
       const link = extractLink(itemContent)
-      const description = cleanText(
+      const rawDescription =
         extractTag(itemContent, "description") ||
         extractTag(itemContent, "summary") ||
         extractTag(itemContent, "content") ||
+        extractTag(itemContent, "content:encoded") ||
         ""
+      const description = cleanText(
+        rawDescription
       )
       const pubDate = extractTag(itemContent, "pubDate") ||
         extractTag(itemContent, "published") ||
         extractTag(itemContent, "updated") ||
         new Date().toISOString()
+      const imageUrl = extractImageUrl(itemContent) || extractImageUrl(rawDescription)
 
       if (!title || !link) return null
 
@@ -94,6 +111,7 @@ function parseRSSXML(xml: string, source: NewsSource): RSSItem[] {
         pubDate,
         source: source.name,
         sourceId: source.id,
+        imageUrl,
       }
     })
 

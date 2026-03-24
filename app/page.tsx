@@ -4,9 +4,14 @@ import { mockArticles } from "@/lib/mock-data"
 import { Separator } from "@/components/ui/separator"
 import { listPublishedArticles } from "@/lib/articles"
 import Link from "next/link"
+import { getClickbaitBusters } from "@/lib/clickbait"
+import { ClickbaitBusters } from "@/components/clickbait-busters"
+
+export const revalidate = 1800
 
 export default async function HomePage() {
   const { articles } = await listPublishedArticles()
+  const clickbaitBusters = await getClickbaitBusters()
   
   // Fallback to mock if no articles in DB
   const displayArticles = articles.length > 0 ? articles : mockArticles
@@ -118,6 +123,8 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+
+        <ClickbaitBusters items={clickbaitBusters} />
       </main>
 
       {/* Footer */}

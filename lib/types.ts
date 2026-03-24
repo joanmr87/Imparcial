@@ -51,6 +51,7 @@ export interface SourceArticleInput {
   description: string
   link: string
   pubDate: string
+  imageUrl?: string
 }
 
 export interface RSSItem extends SourceArticleInput {
