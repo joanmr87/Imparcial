@@ -102,6 +102,18 @@ function truncateAnswer(answer: string): string {
     .slice(0, 120)
 }
 
+function hasPluralPriceCue(title: string): boolean {
+  return /\bcuanto cuesta\b/.test(title) && /\b(los|las|unos|unas|colegios|autos|departamentos|celulares)\b/.test(title)
+}
+
+function isValidClickbaitAnswer(answer: string): boolean {
+  const clean = answer.trim()
+  if (clean.length < 3) return false
+  if (/^\$\s?\d{1,2}$/.test(clean)) return false
+  if (/^(no se sabe|sin datos|en vivo)$/i.test(clean)) return false
+  return true
+}
+
 function extractCapitalizedName(description: string): string | null {
   const match = description.match(/\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b/)
   return match ? match[1] : null
@@ -120,7 +132,8 @@ export function deriveClickbaitFallbackAnswer(item: RSSItem): string | null {
   if (!description) return null
 
   if (/\ba cuanto\b|\bcuanto cuesta\b/.test(title)) {
-    const amountMatch = description.match(/\$ ?\d[\d\.\,]*/i)
+    if (hasPluralPriceCue(title)) return null
+    const amountMatch = description.match(/\$\s?\d(?:[\d\.\,\s]*\d)?(?:\s*(mil|millones?))?/i)
     return amountMatch ? amountMatch[0] : null
   }
 
@@ -134,7 +147,7 @@ export function deriveClickbaitFallbackAnswer(item: RSSItem): string | null {
     return placeMatch ? cleanShortAnswer(placeMatch[0]) : null
   }
 
-  if (/\bquien\b|\bquienes\b|\breemplazante\b/.test(title)) {
+  if (/^\s*quien\b|^\s*quienes\b|\breemplazante\b/.test(title)) {
     const directCandidate = description.match(/\b(?:a|como)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b/)
     if (directCandidate) return directCandidate[1]
     return extractCapitalizedName(description)
@@ -264,7 +277,7 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
   const fallbackItems: ClickbaitBusterItem[] = candidates
     .map((item): (ClickbaitBusterItem & { heuristicScore: number }) | null => {
       const answer = deriveClickbaitFallbackAnswer(item)
-      if (!answer) return null
+      if (!answer || !isValidClickbaitAnswer(answer)) return null
 
       return {
         id: `${item.sourceId}:${item.link}`,

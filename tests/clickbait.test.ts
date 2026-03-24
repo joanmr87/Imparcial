@@ -24,6 +24,15 @@ describe("clickbait fallback answers", () => {
     expect(deriveClickbaitFallbackAnswer(item)).toBe("$1.425")
   })
 
+  it("rejects plural price list titles that cannot be answered in one datum", () => {
+    const item = makeItem({
+      title: "Cuánto cuesta estudiar en los colegios argentinos que formaron presidentes",
+      description: "Las cuotas arrancan en $ 2.050.000 en algunos casos y varían según la institución.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
   it("extracts names for 'quién' titles", () => {
     const item = makeItem({
       title: "Quién será el reemplazante de Marchesín en Boca",
@@ -40,5 +49,14 @@ describe("clickbait fallback answers", () => {
     })
 
     expect(deriveClickbaitFallbackAnswer(item)).toBe("en la Bombonera")
+  })
+
+  it("does not guess names when the title is not a direct 'quién' question", () => {
+    const item = makeItem({
+      title: "Ordenan levantar el secreto fiscal para saber quién pagó los viajes de Adorni",
+      description: "La justicia busca determinar si hubo aportes de terceros y analiza documentación vinculada a Uruguay.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
   })
 })
