@@ -8,7 +8,7 @@ const navItems = [
   { label: "Politica", href: "/?seccion=politica" },
   { label: "Economia", href: "/?seccion=economia" },
   { label: "Sociedad", href: "/?seccion=sociedad" },
-  { label: "Internacional", href: "/?seccion=internacional" },
+  { label: "Deportes", href: "/?seccion=deportes" },
   { label: "Metodologia", href: "/metodologia" },
 ]
 

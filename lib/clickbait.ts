@@ -2,7 +2,7 @@ import { unstable_cache } from "next/cache"
 import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { z } from "zod"
-import { fetchAllFeeds } from "./rss-fetcher"
+import { getLatestFeedSnapshot } from "./feed-store"
 import type { RSSItem } from "./types"
 
 export interface ClickbaitBusterItem {
@@ -14,43 +14,30 @@ export interface ClickbaitBusterItem {
   imageUrl?: string
 }
 
-const MAX_ANSWER_WORDS = 6
-
-const clickbaitAnswerSchema = z.object({
+const clickbaitSelectionSchema = z.object({
   items: z.array(
     z.object({
-      title: z.string(),
-      include: z.boolean().describe("Si este titulo merece entrar en la seccion"),
-      answer: z.string().describe("Respuesta directa de 1 a 6 palabras"),
+      id: z.string(),
+      include: z.boolean().describe("Si el titulo merece entrar en la seccion"),
+      answer: z.string().describe("Respuesta concreta y util para el lector"),
     })
   ),
 })
 
-const DIRECT_BAIT_PATTERNS = [
+const HINT_PATTERNS = [
   /\?/,
   /^\s*qu[eé]n\b/i,
   /^\s*qu[eé]\b/i,
   /^\s*cu[aá]l/i,
   /^\s*cu[aá]les/i,
   /^\s*d[oó]nde/i,
-  /^\s*hasta qu[eé]/i,
-  /\ba qu[eé]\b/i,
-  /\ba qu[eé] edad\b/i,
-  /\bcu[aá]nto\b/i,
-  /\bcu[aá]ntos\b/i,
-  /\bdonde\b/i,
+  /^\s*cu[aá]nto/i,
+  /^\s*a qu[eé]/i,
   /\brevel[oó]\b/i,
-  /\bqu[eé] se sabe\b/i,
+  /\bconfirm[oó]\b/i,
+  /\banunci[oó]\b/i,
+  /\bla citaci[oó]n\b/i,
   /\bqui[eé]n ser[aá]\b/i,
-  /\bqui[eé]nes\b/i,
-]
-
-const WITHHELD_ANSWER_PATTERNS = [
-  /\brevel[oó]\b.*\ba qui[eé]n(?:es)?\b/i,
-  /\bla citaci[oó]n\b.*\b(realiz[oó]|hizo|confirm[oó]|anunci[oó])\b/i,
-  /\bel llamado\b.*\b(realiz[oó]|hizo|confirm[oó]|anunci[oó])\b/i,
-  /\bqu[eé] decisi[oó]n\b/i,
-  /\bel dato\b.*\bque\b/i,
 ]
 
 const REJECT_PATTERNS = [
@@ -58,164 +45,121 @@ const REJECT_PATTERNS = [
   /\bminuto a minuto\b/i,
   /\bultimas noticias\b/i,
   /\btodo sobre\b/i,
-  /\bhoy\b.*\ben vivo\b/i,
   /\bgu[ií]a\b/i,
-  /\bconsejos\b/i,
-  /\bclaves\b/i,
-  /\bcuidados\b/i,
-  /\brutinas\b/i,
-  /\bpaso a paso\b/i,
-  /\blista\b/i,
-  /\branking\b/i,
-  /\btop\s+\d+\b/i,
-  /\blos\s+\d+\b/i,
+  /\bopini[oó]n\b/i,
+  /\ban[aá]lisis\b/i,
+  /\bcolumna\b/i,
 ]
 
-function stripTrailingNoise(text: string): string {
+function normalizeText(text: string): string {
   return text
-    .replace(/\s+/g, " ")
-    .replace(/\s*Leer más$/i, "")
-    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
 }
 
-function looksLikeClickbait(title: string): boolean {
-  if (REJECT_PATTERNS.some(pattern => pattern.test(title))) return false
-  return DIRECT_BAIT_PATTERNS.some(pattern => pattern.test(title))
-    || WITHHELD_ANSWER_PATTERNS.some(pattern => pattern.test(title))
-}
+function looksLikePotentialClickbait(item: RSSItem): boolean {
+  if (!item.imageUrl || !item.description.trim()) return false
+  if (REJECT_PATTERNS.some(pattern => pattern.test(item.title))) return false
 
-function fallbackAnswer(item: RSSItem): string {
-  const shortSentence = stripTrailingNoise(item.description.split(/[.!?]/)[0] || "")
-  if (!shortSentence) return ""
-  return "No lo dice claro"
+  const normalizedTitle = normalizeText(item.title)
+  if (normalizedTitle.length < 24) return false
+
+  return HINT_PATTERNS.some(pattern => pattern.test(item.title))
 }
 
 function dedupeCandidates(items: RSSItem[]): RSSItem[] {
   const seen = new Set<string>()
 
   return items.filter(item => {
-    const key = item.title.toLowerCase()
+    const key = normalizeText(item.title).replace(/\s+/g, " ").trim()
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
 }
 
-function normalizeAnswer(answer: string): string {
+function truncateAnswer(answer: string): string {
   return answer
-    .replace(/\.\.\.+$/g, "")
-    .replace(/[.!?]+$/g, "")
     .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/g, "")
     .trim()
+    .slice(0, 120)
 }
 
-function isCompactAnswer(answer: string): boolean {
-  const normalized = normalizeAnswer(answer)
-  if (!normalized) return false
-  if (normalized.length > 40) return false
+async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
+  const { items } = await getLatestFeedSnapshot()
+  const candidates = dedupeCandidates(
+    items
+      .filter(looksLikePotentialClickbait)
+      .sort((left, right) => new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime())
+      .slice(0, 18)
+  )
 
-  const words = normalized.split(/\s+/).filter(Boolean)
-  return words.length > 0 && words.length <= MAX_ANSWER_WORDS
-}
+  if (candidates.length === 0 || !process.env.OPENAI_API_KEY) return []
 
-async function generateAnswers(items: RSSItem[]): Promise<Map<string, string>> {
-  if (!process.env.OPENAI_API_KEY || items.length === 0) return new Map()
-
-  const prompt = items
+  const prompt = candidates
     .map((item, index) => [
       `Item ${index + 1}`,
+      `ID: ${item.sourceId}:${index}`,
       `Titulo: ${item.title}`,
       `Medio: ${item.source}`,
       `Descripcion: ${item.description || "Sin bajada disponible"}`,
+      `URL: ${item.link}`,
     ].join("\n"))
     .join("\n\n---\n\n")
 
   try {
     const { object } = await generateObject({
       model: openai(process.env.OPENAI_MODEL || "gpt-5-nano"),
-      schema: clickbaitAnswerSchema,
+      schema: clickbaitSelectionSchema,
       system: [
-        "Sos editor de una seccion de Diario Imparcial que desarma titulares clickbait.",
-        "Solo deben entrar titulos cuya pregunta oculta pueda responderse en 1 a 6 palabras.",
-        "Si el titulo exige una lista larga, una explicacion amplia, una guia, un vivo o un analisis, debe quedar afuera.",
-        "Tu trabajo es responder cada titulo de manera directa, seca y util.",
-        "No inventes datos.",
-        "No hagas chistes largos: la gracia sale de responder sin vueltas.",
-        "La respuesta debe ser breve, concreta, sonar natural en Argentina y nunca superar 6 palabras.",
-        "Preferi respuestas como: 'En la Bombonera', 'A los 7 años', 'Brey', 'No lo dice claro'.",
-        "No escribas oraciones completas.",
-        "Si la descripcion no resuelve claramente la incognita, marca include=false.",
+        "Sos editor de una seccion de Diario Imparcial que detecta y desarma titulares clickbait.",
+        "Primero decidis si el titulo realmente oculta un dato concreto que el lector probablemente quiere abrir para conocer.",
+        "Solo inclui titulos si la descripcion ya revela esa respuesta de forma suficiente.",
+        "Exclui notas de analisis, opinion, coberturas en vivo, listados largos, explicaciones amplias o titulares que ya son informativos por si mismos.",
+        "Si inclui un item, responde con el dato concreto que el usuario queria saber.",
+        "La respuesta puede ser una palabra, una cifra, un nombre propio o una frase corta de una sola oracion.",
+        "No inventes datos. Si la descripcion no alcanza para responder con certeza, include=false.",
+        "No uses formulas como 'No lo dice claro'. Si no se puede responder bien, no lo incluyas.",
+        "Responde en espanol de Argentina, con tono seco y claro.",
       ].join(" "),
       prompt,
     })
 
-    return new Map(
+    const answersById = new Map(
       object.items
         .filter(item => item.include)
-        .map(item => [item.title, normalizeAnswer(item.answer)])
+        .map(item => [item.id, truncateAnswer(item.answer)])
+        .filter((entry): entry is [string, string] => Boolean(entry[1]))
     )
-  } catch {
-    return new Map()
-  }
-}
 
-function scoreCandidate(item: RSSItem): number {
-  const title = item.title
-  let score = 0
+    const selectedItems: ClickbaitBusterItem[] = []
 
-  if (/^\s*qu[eé]n\b/i.test(title)) score += 4
-  if (/^\s*d[oó]nde\b/i.test(title)) score += 4
-  if (/^\s*cu[aá]les\b/i.test(title)) score += 4
-  if (/\ba qu[eé] edad\b/i.test(title)) score += 4
-  if (/\bqu[eé] se sabe\b/i.test(title)) score += 3
-  if (/\brevel[oó]\b/i.test(title)) score += 3
-  if (WITHHELD_ANSWER_PATTERNS.some(pattern => pattern.test(title))) score += 3
-  if (/\?/i.test(title)) score += 2
-  if (/\bqu[eé]\b/i.test(title)) score += 1
-  if (!item.description) score -= 2
-  if (REJECT_PATTERNS.some(pattern => pattern.test(title))) score -= 10
+    for (const [index, item] of candidates.entries()) {
+        const id = `${item.sourceId}:${index}`
+        const answer = answersById.get(id)
 
-  return score
-}
+        if (!answer) continue
 
-async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
-  const feedResults = await fetchAllFeeds(["lanacion", "clarin", "tn", "ambito", "cronista", "perfil"])
-  const candidates = dedupeCandidates(
-    feedResults
-      .flatMap(result => result.items)
-      .filter(item => looksLikeClickbait(item.title))
-      .filter(item => item.imageUrl)
-      .sort((left, right) => {
-        const scoreDifference = scoreCandidate(right) - scoreCandidate(left)
-        if (scoreDifference !== 0) return scoreDifference
-        return new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime()
-      })
-      .slice(0, 14)
-  )
-
-  const shortlisted = candidates
-    .slice(0, 8)
-
-  const answers = await generateAnswers(shortlisted)
-
-  return shortlisted
-    .map(item => {
-      const answer = normalizeAnswer(answers.get(item.title) || fallbackAnswer(item))
-      return {
-        id: `${item.sourceId}:${item.link}`,
-        title: item.title,
-        answer,
-        source: item.source,
-        url: item.link,
-        imageUrl: item.imageUrl,
+        selectedItems.push({
+          id: `${item.sourceId}:${item.link}`,
+          title: item.title,
+          answer,
+          source: item.source,
+          url: item.link,
+          imageUrl: item.imageUrl,
+        })
       }
-    })
-    .filter(item => isCompactAnswer(item.answer))
-    .slice(0, 6)
+
+    return selectedItems.slice(0, 6)
+  } catch {
+    return []
+  }
 }
 
 export const getClickbaitBusters = unstable_cache(
   buildClickbaitBusters,
   ["clickbait-busters"],
-  { revalidate: 60 * 60 * 6 }
+  { revalidate: 60 * 60 * 3 }
 )

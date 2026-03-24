@@ -1,88 +1,134 @@
-import { Header } from "@/components/header"
-import { ArticleCard } from "@/components/article-card"
-import { mockArticles } from "@/lib/mock-data"
-import { Separator } from "@/components/ui/separator"
-import { listPublishedArticles } from "@/lib/articles"
 import Link from "next/link"
-import { getClickbaitBusters } from "@/lib/clickbait"
+import { ArticleCard } from "@/components/article-card"
 import { ClickbaitBusters } from "@/components/clickbait-busters"
+import { Header } from "@/components/header"
+import { HomepageSectionBlock } from "@/components/homepage-section"
+import { LiveBriefCard } from "@/components/live-brief-card"
+import { Separator } from "@/components/ui/separator"
+import { getClickbaitBusters } from "@/lib/clickbait"
+import { getHomepageEdition } from "@/lib/homepage"
+import { normalizeSectionSlug } from "@/lib/news-categories"
 
 export const revalidate = 1800
 
-export default async function HomePage() {
-  const { articles } = await listPublishedArticles()
+interface HomePageProps {
+  searchParams?: Promise<{ seccion?: string }>
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const params = searchParams ? await searchParams : undefined
+  const activeSection = normalizeSectionSlug(params?.seccion)
+  const { articles, topBriefs, sections, warning } = await getHomepageEdition(activeSection)
   const clickbaitBusters = await getClickbaitBusters()
-  
-  // Fallback to mock if no articles in DB
-  const displayArticles = articles.length > 0 ? articles : mockArticles
-  
-  const featured = displayArticles[0]
-  const secondary = displayArticles.slice(1, 3)
-  const sidebar = displayArticles.slice(3)
+
+  const featured = articles[0]
+  const secondary = articles.slice(1, 3)
+  const sidebar = articles.slice(3, 8)
+  const secondaryBriefs = topBriefs.slice(0, Math.max(0, 2 - secondary.length))
+  const sidebarBriefs = topBriefs.slice(secondaryBriefs.length, secondaryBriefs.length + Math.max(0, 5 - sidebar.length))
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <main className="mx-auto max-w-5xl px-4 py-10">
-        {/* Main grid layout */}
+        {activeSection && (
+          <section className="mb-8 rounded-[1.5rem] border border-border bg-card/40 px-5 py-4">
+            <p className="text-xs tracking-widest text-muted-foreground uppercase">
+              Vista filtrada
+            </p>
+            <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="font-serif text-2xl font-semibold text-foreground">
+                  {sections[0]?.label || "Seccion"}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Una portada acotada a esa agenda, sin perder el panorama del resto abajo.
+                </p>
+              </div>
+              <Link
+                href="/"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Volver a la portada completa
+              </Link>
+            </div>
+          </section>
+        )}
+
+        {warning && (
+          <section className="mb-8 rounded-[1.5rem] border border-border bg-card/30 px-5 py-4">
+            <p className="text-xs tracking-widest text-muted-foreground uppercase">
+              Estado editorial
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {warning}
+            </p>
+          </section>
+        )}
+
         <div className="grid gap-10 lg:grid-cols-3 lg:gap-12">
-          {/* Main column - Featured + Secondary */}
           <div className="lg:col-span-2">
-            {/* Featured article */}
-            <ArticleCard article={featured} variant="featured" />
-            
+            {featured && <ArticleCard article={featured} variant="featured" />}
+
             <Separator className="my-8" />
 
-            {/* Secondary articles */}
             <div className="grid gap-8 md:grid-cols-2 md:gap-10">
-              {secondary.map((article) => (
+              {secondary.map(article => (
                 <ArticleCard key={article.id} article={article} variant="large" />
+              ))}
+              {secondaryBriefs.map(brief => (
+                <LiveBriefCard key={brief.id} brief={brief} variant="large" />
               ))}
             </div>
           </div>
 
-          {/* Sidebar */}
           <aside className="lg:border-l lg:border-border lg:pl-10">
             <p className="text-xs font-medium tracking-widest text-foreground uppercase">
-              Mas notas
+              Edicion del momento
             </p>
             <Separator className="my-4" />
             <div className="flex flex-col gap-6">
-              {sidebar.map((article) => (
+              {sidebar.map(article => (
                 <ArticleCard key={article.id} article={article} variant="small" />
+              ))}
+              {sidebarBriefs.map(brief => (
+                <LiveBriefCard key={brief.id} brief={brief} variant="small" />
               ))}
             </div>
           </aside>
         </div>
 
-        {/* About section */}
         <section className="mt-16 border-t border-border pt-10">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="font-serif text-2xl font-semibold text-foreground">
               Sobre Diario Imparcial
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Cada nota que publicamos es el resultado de analizar la misma noticia en 3 a 7 medios argentinos diferentes. Utilizamos inteligencia artificial para extraer los hechos, separar las opiniones y mostrar las discrepancias entre fuentes. Nuestro objetivo es que puedas informarte sin sesgo editorial.
+              Cada nota propia cruza varias coberturas del mismo hecho y después ordena qué está confirmado, qué queda atribuido y en qué difieren los medios. Cuando todavía no hay suficiente material para una nota imparcial cerrada, la portada igual se completa con un radar vivo por secciones para que el diario nunca se sienta vacío.
             </p>
             <div className="mt-6 flex items-center justify-center gap-8 text-xs text-muted-foreground">
               <div>
-                <span className="block font-serif text-2xl font-semibold text-foreground">7+</span>
-                <span>Medios analizados</span>
+                <span className="block font-serif text-2xl font-semibold text-foreground">{articles.length}</span>
+                <span>Temas visibles</span>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <span className="block font-serif text-2xl font-semibold text-foreground">100%</span>
-                <span>Transparencia</span>
+                <span className="block font-serif text-2xl font-semibold text-foreground">{sections.length}</span>
+                <span>Secciones activas</span>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <span className="block font-serif text-2xl font-semibold text-foreground">0</span>
-                <span>Adjetivos</span>
+                <span className="block font-serif text-2xl font-semibold text-foreground">3x</span>
+                <span>Actualizaciones diarias</span>
               </div>
             </div>
           </div>
         </section>
+
+        {sections.map(section => (
+          <HomepageSectionBlock key={section.slug} section={section} />
+        ))}
 
         <section className="mt-16 rounded-[2rem] border border-border bg-card/40 px-6 py-8 md:px-10">
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
@@ -91,7 +137,7 @@ export default async function HomePage() {
                 Que es El Imparcial
               </p>
               <h2 className="mt-3 font-serif text-3xl font-semibold text-foreground">
-                Un diario hecho para leer lo importante sin casarte con una sola voz
+                Un diario hecho para entender rápido qué pasó, sin fumarte el sesgo de una sola tapa
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
                 Cuando una noticia importa de verdad, casi nunca aparece en un solo medio. El Imparcial toma
@@ -110,9 +156,9 @@ export default async function HomePage() {
               </p>
               <ol className="mt-4 space-y-3 text-sm text-foreground/80">
                 <li>1. Leemos varios diarios varias veces por día.</li>
-                <li>2. Agrupamos notas sobre el mismo acontecimiento.</li>
-                <li>3. La IA ordena hechos, atribuciones y discrepancias.</li>
-                <li>4. Publicamos una versión nueva con trazabilidad visible.</li>
+                <li>2. Detectamos temas repetidos entre al menos dos medios.</li>
+                <li>3. La IA transforma ese cruce en una nota nueva y trazable.</li>
+                <li>4. La portada suma radar en vivo por sección para no dejar huecos.</li>
               </ol>
               <Link
                 href="/metodologia"
@@ -127,7 +173,6 @@ export default async function HomePage() {
         <ClickbaitBusters items={clickbaitBusters} />
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border">
         <div className="mx-auto max-w-5xl px-4 py-8">
           <div className="flex flex-col items-center gap-4 text-center md:flex-row md:justify-between md:text-left">
