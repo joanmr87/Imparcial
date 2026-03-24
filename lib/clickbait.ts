@@ -71,7 +71,11 @@ function looksLikePotentialClickbait(item: RSSItem): boolean {
   if (!item.imageUrl || !item.description.trim()) return false
   if (REJECT_PATTERNS.some(pattern => pattern.test(item.title))) return false
 
-  const normalizedTitle = normalizeText(item.title)
+  const normalizedTitle = normalizeText(`${item.title} ${item.description} ${item.link}`)
+  if (/\b(mexico|usa|estados unidos|\/mexico\/|\/usa\/)\b/.test(normalizedTitle) && !/\bargentina\b/.test(normalizedTitle)) {
+    return false
+  }
+
   return normalizedTitle.length >= 18
 }
 
@@ -392,6 +396,7 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
         "Si es un pronostico, devolvelo tipo 'hasta 39°' o 'llueve el jueves'.",
         "Si es una cifra estimada, devolvela tipo 'aprox. 4%'.",
         "Si es una convocatoria o citacion, devolve solo los nombres.",
+        "Priorizá temas de Argentina o de impacto directo para lectores argentinos. Dejá afuera notas extranjeras sin relevancia local clara.",
         "No inventes. Si el contexto no permite una respuesta clara, include=false.",
         "No uses frases vagas como 'No lo dice claro', 'depende' o 'hay que leer la nota'.",
         "Escribi en espanol de Argentina. La respuesta tiene que poder entrar en una card.",
