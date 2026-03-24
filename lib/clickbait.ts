@@ -63,9 +63,21 @@ function looksLikePotentialClickbait(item: RSSItem): boolean {
   if (REJECT_PATTERNS.some(pattern => pattern.test(item.title))) return false
 
   const normalizedTitle = normalizeText(item.title)
-  if (normalizedTitle.length < 24) return false
+  return normalizedTitle.length >= 18
+}
 
-  return HINT_PATTERNS.some(pattern => pattern.test(item.title))
+function scorePotentialClickbait(item: RSSItem): number {
+  let score = 0
+
+  if (HINT_PATTERNS.some(pattern => pattern.test(item.title))) score += 5
+  if (/\bsecret[oa]s?\b/i.test(item.title)) score += 2
+  if (/\bque\b/i.test(item.title)) score += 1
+  if (/\bcual\b/i.test(item.title)) score += 1
+  if (/\bquien\b/i.test(item.title)) score += 1
+  if (/\bdonde\b/i.test(item.title)) score += 1
+  if (/\bcuanto\b/i.test(item.title)) score += 1
+
+  return score
 }
 
 function dedupeCandidates(items: RSSItem[]): RSSItem[] {
@@ -92,8 +104,12 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
   const candidates = dedupeCandidates(
     items
       .filter(looksLikePotentialClickbait)
-      .sort((left, right) => new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime())
-      .slice(0, 18)
+      .sort((left, right) => {
+        const scoreDifference = scorePotentialClickbait(right) - scorePotentialClickbait(left)
+        if (scoreDifference !== 0) return scoreDifference
+        return new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime()
+      })
+      .slice(0, 30)
   )
 
   if (candidates.length === 0 || !process.env.OPENAI_API_KEY) return []
@@ -123,6 +139,7 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
         "No inventes datos. Si la descripcion no alcanza para responder con certeza, include=false.",
         "No uses formulas como 'No lo dice claro'. Si no se puede responder bien, no lo incluyas.",
         "Responde en espanol de Argentina, con tono seco y claro.",
+        "Si un titular es apenas largo pero no es verdaderamente clickbait, dejalo afuera.",
       ].join(" "),
       prompt,
     })
@@ -150,7 +167,7 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
           url: item.link,
           imageUrl: item.imageUrl,
         })
-      }
+    }
 
     return selectedItems.slice(0, 6)
   } catch {

@@ -68,11 +68,29 @@ function dedupeBriefs(items: RSSItem[]): LiveBrief[] {
     })
 }
 
+function takeUniqueBriefs(items: LiveBrief[], usedTitles: Set<string>, count: number): LiveBrief[] {
+  const selected: LiveBrief[] = []
+
+  for (const item of items) {
+    const normalizedTitle = normalizeTitle(item.title)
+    if (usedTitles.has(normalizedTitle)) continue
+
+    usedTitles.add(normalizedTitle)
+    selected.push(item)
+
+    if (selected.length >= count) break
+  }
+
+  return selected
+}
+
 export async function getHomepageEdition(activeSection?: string | null): Promise<HomepageEdition> {
   const sectionFilter = normalizeSectionSlug(activeSection)
   const published = await listPublishedArticles()
   const { items } = await getLatestFeedSnapshot()
   const liveBriefs = dedupeBriefs(items)
+  const publishedArticleTitles = new Set(published.articles.map(article => normalizeTitle(article.title)))
+  const usedBriefTitles = new Set<string>()
 
   let articles = published.articles
   if (sectionFilter) {
@@ -82,33 +100,41 @@ export async function getHomepageEdition(activeSection?: string | null): Promise
     }
   }
 
-  const sections = HOME_SECTION_ORDER
-    .filter(section => !sectionFilter || section.slug === sectionFilter)
-    .map(section => {
-      const categoryArticles = published.articles.filter(article => inferCategoryFromArticle(article) === section.label)
-      const relatedTitles = new Set(categoryArticles.map(article => normalizeTitle(article.title)))
-      const categoryBriefs = liveBriefs
-        .filter(item => item.category === section.label)
-        .filter(item => !relatedTitles.has(normalizeTitle(item.title)))
-        .slice(0, 3)
+  const availableBriefs = liveBriefs.filter(item => !publishedArticleTitles.has(normalizeTitle(item.title)))
+  const topBriefs = takeUniqueBriefs(
+    availableBriefs.filter(item => !sectionFilter || normalizeSectionSlug(item.category.toLowerCase()) === sectionFilter),
+    usedBriefTitles,
+    6
+  )
 
-      return {
-        slug: section.slug,
-        label: section.label,
-        lead: categoryArticles[0],
-        articles: categoryArticles.slice(1, 4),
-        briefs: categoryBriefs,
-      }
+  const sections: HomepageSection[] = []
+
+  for (const section of HOME_SECTION_ORDER) {
+    if (sectionFilter && section.slug !== sectionFilter) continue
+
+    const categoryArticles = published.articles.filter(article => inferCategoryFromArticle(article) === section.label)
+    const categoryBriefs = takeUniqueBriefs(
+      availableBriefs.filter(item => item.category === section.label),
+      usedBriefTitles,
+      3
+    )
+
+    if (!categoryArticles[0] && categoryBriefs.length === 0) continue
+
+    sections.push({
+      slug: section.slug,
+      label: section.label,
+      lead: categoryArticles[0],
+      articles: categoryArticles.slice(1, 4),
+      briefs: categoryBriefs,
     })
-    .filter(section => section.lead || section.articles.length > 0 || section.briefs.length > 0)
+  }
 
   return {
     articles: articles.length > 0 ? articles : published.articles,
     source: published.source,
     warning: published.warning,
-    topBriefs: liveBriefs
-      .filter(item => !sectionFilter || normalizeSectionSlug(item.category.toLowerCase()) === sectionFilter)
-      .slice(0, 6),
+    topBriefs,
     sections,
   }
 }
