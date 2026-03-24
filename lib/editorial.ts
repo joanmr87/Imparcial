@@ -278,7 +278,10 @@ function buildFallbackArticle(topic: string, articles: SourceArticleInput[]): Im
 
 export async function generateImpartialArticle(
   topic: string,
-  articles: SourceArticleInput[]
+  articles: SourceArticleInput[],
+  options: {
+    useAi?: boolean
+  } = {}
 ): Promise<{
   article: ImpartialArticle
   usage: {
@@ -287,7 +290,9 @@ export async function generateImpartialArticle(
     totalTokens?: number
   }
 }> {
-  if (process.env.OPENAI_API_KEY) {
+  const { useAi = true } = options
+
+  if (useAi && process.env.OPENAI_API_KEY) {
     try {
       const modelId = process.env.OPENAI_MODEL || "gpt-5-nano"
       const formattedSources = articles

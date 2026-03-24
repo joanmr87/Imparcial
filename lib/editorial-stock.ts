@@ -11,6 +11,7 @@ async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
       limit: GENERATED_STOCK_LIMIT,
       generateArticles: true,
       persist: false,
+      useAi: false,
     })
 
     return result.generated.map(item => item.article)

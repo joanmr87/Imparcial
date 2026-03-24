@@ -13,6 +13,7 @@ export interface CollectClustersOptions {
 export interface GeneratePipelineOptions extends CollectClustersOptions {
   generateArticles?: boolean
   persist?: boolean
+  useAi?: boolean
 }
 
 export async function collectLatestClusters(options: CollectClustersOptions = {}) {
@@ -44,6 +45,7 @@ export async function generatePipelineRun(options: GeneratePipelineOptions = {})
   const {
     generateArticles = true,
     persist = false,
+    useAi = true,
     ...collectOptions
   } = options
 
@@ -80,7 +82,7 @@ export async function generatePipelineRun(options: GeneratePipelineOptions = {})
 
   for (const cluster of collected.clusters) {
     try {
-      const { article, usage } = await generateImpartialArticle(cluster.topic, cluster.articles)
+      const { article, usage } = await generateImpartialArticle(cluster.topic, cluster.articles, { useAi })
 
       let persisted = false
       if (persist && editorialSchema?.ready) {
