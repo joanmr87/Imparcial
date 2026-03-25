@@ -69,6 +69,37 @@ describe("clickbait fallback answers", () => {
     expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
   })
 
+  it("rejects retrospective sports hooks that do not hide a useful direct datum", () => {
+    const item = makeItem({
+      title: "¿Maradona a River? La trama detrás de un pase que pudo cambiar la historia del fútbol argentino",
+      description: "La historia se remonta al 24 de abril de 1980, cuando hubo una reunión decisiva entre dirigentes.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
+  it("rejects lifestyle listicles whose answer only repeats the hook", () => {
+    const item = makeItem({
+      source: "Clarin",
+      sourceId: "clarin",
+      title: "Existen 6 tipos de infidelidad: \"Después de terminar mi matrimonio, revelo cuál es la traición más devastadora\"",
+      description: "La especialista enumera seis tipos de infidelidad y describe por qué una de ellas duele más.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
+  it("extracts useful brand lists for resolvable clickbait", () => {
+    const item = makeItem({
+      source: "iProfesional",
+      sourceId: "iprofesional",
+      title: "Cuáles son las marcas emblemáticas de leche, queso y yogurt que quebraron o están colapsando",
+      description: "Entre los casos aparecen Lácteos Verónica, SanCor, Luz Azul, Sudamericana Lácteos y Saputo.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBe("Lácteos Verónica, SanCor, Luz Azul, Sudamericana Lácteos, Saputo")
+  })
+
   it("extracts article context from HTML paragraphs and list items", () => {
     const html = `
       <html>
