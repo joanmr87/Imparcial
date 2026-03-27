@@ -66,6 +66,9 @@ const DIRECT_VALUE_PATTERNS = [
   /\bconvocad[oa]s?\b/i,
   /\blista\b/i,
   /\bmarcas?\b/i,
+  /\bse lesion[oó]\s+(un|una)\b/i,
+  /\bpodr[ií]a perderse\b/i,
+  /\bse ir[aá]\s+del pa[ií]s\b/i,
 ]
 
 const LOW_VALUE_PATTERNS = [
@@ -331,6 +334,14 @@ function extractCapitalizedName(description: string): string | null {
   return match ? match[1] : null
 }
 
+function extractLikelyPersonName(text: string): string | null {
+  const matches = text.match(/\b([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,2})\b/g)
+  if (!matches) return null
+
+  const candidates = matches.filter(name => !/^(Seleccion Argentina|Mundial 2026|Fecha FIFA|Buenos Aires)$/i.test(name))
+  return candidates[0] || null
+}
+
 function cleanShortAnswer(answer: string): string {
   return answer
     .split(/\b(si|cuando|mientras|porque)\b/i)[0]
@@ -389,6 +400,10 @@ function deriveClickbaitFallbackAnswerFromContext(item: RSSItem, extraContext: s
 
   if (/\bcitacion\b|\bconvocad\b|\blista\b/.test(title)) {
     return normalizeResolvedAnswer(extractNameList(context, 6), item.title)
+  }
+
+  if (/\bse lesiono\b|\bpodria perderse\b|\bse ira del pais\b/.test(title)) {
+    return normalizeResolvedAnswer(extractLikelyPersonName(context) || extractCapitalizedName(context), item.title)
   }
 
   if (/^\s*quien\b|^\s*quienes\b|\breemplazante\b/.test(title)) {
@@ -482,6 +497,7 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
         "Si es un pronostico, devolvelo tipo 'hasta 39°' o 'llueve el jueves'.",
         "Si es una cifra estimada, devolvela tipo 'aprox. 4%'.",
         "Si es una convocatoria o citacion, devolve solo los nombres.",
+        "Si el titular oculta una identidad sin preguntar de forma directa, por ejemplo 'se lesionó un jugador' o 'una cantante se irá del país', devolvé el nombre propio.",
         "Priorizá temas de Argentina o de impacto directo para lectores argentinos. Dejá afuera notas extranjeras sin relevancia local clara.",
         "No inventes. Si el contexto no permite una respuesta clara, include=false.",
         "No uses frases vagas como 'No lo dice claro', 'depende' o 'hay que leer la nota'.",

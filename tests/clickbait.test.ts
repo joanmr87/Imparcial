@@ -100,6 +100,17 @@ describe("clickbait fallback answers", () => {
     expect(deriveClickbaitFallbackAnswer(item)).toBe("Lácteos Verónica, SanCor, Luz Azul, Sudamericana Lácteos, Saputo")
   })
 
+  it("extracts the hidden identity when a sports title withholds the player's name", () => {
+    const item = makeItem({
+      source: "TN",
+      sourceId: "tn",
+      title: "Preocupación en la Selección: se lesionó un jugador en la práctica y podría perderse el Mundial",
+      description: "Durante el entrenamiento, Nicolás González sintió una molestia muscular y quedó en duda para el torneo.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBe("Nicolás González")
+  })
+
   it("extracts article context from HTML paragraphs and list items", () => {
     const html = `
       <html>
