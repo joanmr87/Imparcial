@@ -3,9 +3,10 @@ import Link from "next/link"
 import { Header } from "@/components/header"
 import { TransparencyPanel } from "@/components/transparency-panel"
 import { findPublishedArticleBySlug } from "@/lib/articles"
+import { formatArgentinaLongDate } from "@/lib/date-format"
 import { Separator } from "@/components/ui/separator"
 
-export const dynamic = "force-dynamic"
+export const revalidate = 1800
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>
@@ -15,6 +16,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params
   
   const { article } = await findPublishedArticleBySlug(slug)
+  const dateString = formatArgentinaLongDate()
 
   if (!article) {
     notFound()
@@ -31,8 +33,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const sourceTags = [...new Set((article.sources || []).map(source => source.name))]
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(214,203,184,0.18),_transparent_40%),linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(250,247,241,0.94))]">
+      <Header dateString={dateString} />
 
       <main className="mx-auto max-w-5xl px-4 py-10">
         {/* Breadcrumb */}
@@ -47,7 +49,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         <div className="grid gap-10 lg:grid-cols-3 lg:gap-12">
           {/* Main content */}
           <article className="lg:col-span-2">
-            {/* Header */}
             <header className="mb-10">
               <p className="text-xs tracking-widest text-muted-foreground uppercase">
                 {article.category}
@@ -81,12 +82,21 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               )}
             </header>
 
+            {article.heroImageUrl && (
+              <div className="mb-10 overflow-hidden rounded-[1.75rem] border border-border/80 bg-muted shadow-[0_18px_44px_rgba(28,28,28,0.06)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={article.heroImageUrl}
+                  alt={article.title}
+                  className="aspect-[16/9] h-full w-full object-cover"
+                />
+              </div>
+            )}
+
             <Separator className="mb-10" />
 
-            {/* Article content */}
-            <div className="prose-custom">
+            <div className="rounded-[1.75rem] border border-border/70 bg-card/80 px-5 py-6 shadow-[0_18px_40px_rgba(28,28,28,0.04)] md:px-8 md:py-8">
               {(article.content || '').split('\n\n').map((paragraph, index) => {
-                // Handle bold headings
                 if (paragraph.startsWith('**') && paragraph.endsWith('**')) {
                   return (
                     <h3 key={index} className="mt-10 mb-4 font-serif text-xl font-semibold text-foreground">
@@ -94,7 +104,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                     </h3>
                   )
                 }
-                // Handle section headers with colons
                 if (paragraph.includes(':**')) {
                   const parts = paragraph.split(':**')
                   return (
@@ -110,7 +119,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                     </div>
                   )
                 }
-                // Handle list items
                 if (paragraph.startsWith('- ')) {
                   return (
                     <ul key={index} className="my-6 space-y-3">
@@ -126,7 +134,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                     </ul>
                   )
                 }
-                // Regular paragraph
                 return (
                   <p key={index} className="my-5 text-foreground/80 leading-relaxed">
                     {paragraph}
@@ -134,27 +141,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 )
               })}
             </div>
-
-            {/* Editorial note */}
-            <div className="mt-14 border-t border-border pt-8">
-              <p className="text-xs tracking-widest text-muted-foreground uppercase mb-3">
-                Nota de transparencia
-              </p>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Esta síntesis fue elaborada automáticamente por el sistema editorial de Diario Imparcial a partir de {sourceCount} fuentes. El proceso cruza coberturas sobre el mismo hecho, marca qué está confirmado, qué queda atribuido y dónde aparecen diferencias entre medios.
-              </p>
-              <p className="mt-4 text-xs text-muted-foreground">
-                Actualizado: {new Date(article.updatedAt).toLocaleString('es-AR', {
-                  day: 'numeric',
-                  month: 'long',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </p>
-            </div>
           </article>
 
-          {/* Sidebar */}
           <aside className="lg:border-l lg:border-border lg:pl-10">
             <div className="lg:sticky lg:top-8">
               <TransparencyPanel article={article} />

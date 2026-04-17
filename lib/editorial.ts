@@ -10,7 +10,7 @@ const editorialSchema = z.object({
   category: z.string().describe("Categoria periodistica principal"),
   bodyParagraphs: z.array(
     z.string().describe("Parrafo breve y claro para una lectura fluida, con tono periodistico neutral")
-  ).min(3).max(6),
+  ).min(4).max(8),
   facts: z.array(
     z.object({
       text: z.string().describe("Hecho puntual redactado de forma neutral"),
@@ -52,11 +52,14 @@ Reglas obligatorias:
 - Usa categorias periodisticas habituales en Argentina.
 - La lectura debe sentirse clara, ordenada y humana, no como un acta tecnica.
 - Escribe para lectores argentinos que quieren entender rapido que paso, sin jerga innecesaria ni vueltas.
-- Abre con 3 a 6 parrafos cortos que expliquen rapidamente que paso, quien intervino y por que importa hoy.
+- Abre con 4 a 8 parrafos cortos que expliquen rapidamente que paso, quien intervino, que contexto hace falta y por que importa hoy.
+- Si aplica, suma un parrafo de antecedentes inmediatos y otro con el estado actual del tema.
+- En deportes, incluye torneo o competencia, instancia, protagonistas, impacto deportivo inmediato y proximo hito relevante.
 - Evita repetir formulas como "segun" al inicio de todas las oraciones; alterna estructuras pero manteniendo la atribucion cuando haga falta.
 - Si una fuente aporta contexto y otra aporta el hecho puntual, integralos sin perder trazabilidad.
 - No conviertas toda la nota en listas: usa listas solo para hechos confirmados y discrepancias.
 - Si el tema afecta bolsillo, servicios, politica, seguridad, trabajo o vida cotidiana, deja claro por que importa en Argentina.
+- No menciones el proceso interno de generacion del diario dentro del cuerpo de la nota.
 `
 
 function generateSlug(title: string): string {
@@ -83,10 +86,10 @@ function buildContent(article: z.infer<typeof editorialSchema>): string {
   const sections: string[] = []
 
   sections.push(article.bodyParagraphs.join("\n\n"))
-  sections.push("**Hechos confirmados o reportados por las fuentes:**")
+  sections.push("**Claves del hecho**")
   sections.push(article.facts.map(fact => `- ${fact.text}`).join("\n"))
 
-  sections.push("**Informacion atribuida:**")
+  sections.push("**Lo que aportan las coberturas**")
   sections.push(
     article.attributedReporting
       .map(item => `${item.source}: ${item.claim}.`)
@@ -94,7 +97,7 @@ function buildContent(article: z.infer<typeof editorialSchema>): string {
   )
 
   if (article.discrepancies.length > 0) {
-    sections.push("**Puntos de discrepancia:**")
+    sections.push("**Versiones que siguen abiertas**")
     sections.push(
       article.discrepancies
         .map(discrepancy => {
@@ -184,8 +187,7 @@ function inferFallbackCategory(articles: SourceArticleInput[]): string {
   return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || "Sociedad"
 }
 
-function buildFallbackSummary(topic: string, articles: SourceArticleInput[], sentences: Array<{ text: string; source: string }>): string {
-  const sourceNames = [...new Set(articles.map(article => article.source))]
+function buildFallbackSummary(topic: string, _articles: SourceArticleInput[], sentences: Array<{ text: string; source: string }>): string {
   const opening = sentences[0]?.text || stripHeadlineNoise(topic)
   const context = sentences[1]?.text
 
@@ -193,7 +195,7 @@ function buildFallbackSummary(topic: string, articles: SourceArticleInput[], sen
     [
       opening,
       context,
-      `La síntesis reúne ${articles.length} publicaciones de ${sourceNames.length} medios para ordenar lo que se sabe hasta ahora.`,
+      sentences[2]?.text,
     ]
       .filter(Boolean)
       .join(" "),
@@ -201,17 +203,25 @@ function buildFallbackSummary(topic: string, articles: SourceArticleInput[], sen
   )
 }
 
-function buildFallbackBodyParagraphs(topic: string, articles: SourceArticleInput[], sentences: Array<{ text: string; source: string }>): string[] {
-  const sourceNames = [...new Set(articles.map(article => article.source))]
+function buildFallbackBodyParagraphs(topic: string, _articles: SourceArticleInput[], sentences: Array<{ text: string; source: string }>): string[] {
+  const topicLine = stripHeadlineNoise(topic)
+  const sentencePool = sentences.map(sentence => sentence.text)
   const paragraphs = [
-    `Diario Imparcial reconstruyó este tema a partir de ${sourceNames.length} medios que cubrieron ${stripHeadlineNoise(topic).toLowerCase()}. ${sentences[0]?.text || "Las coberturas consultadas coinciden en los elementos principales del hecho."}`,
-    sentences[1]?.text
-      ? `Entre las publicaciones revisadas aparece además este contexto compartido: ${sentences[1].text}`
-      : `Las referencias principales en esta síntesis provienen de ${sourceNames.join(", ")}.`,
-    `La nota se actualiza con nuevas coincidencias entre ${articles.length} publicaciones y deja los links originales como referencia al final.`,
+    sentencePool[0] || topicLine,
+    sentencePool[1]
+      ? `${topicLine}. ${sentencePool[1]}`
+      : sentencePool[0] || `Las distintas coberturas coinciden en los puntos centrales de ${topicLine.toLowerCase()}.`,
+    sentencePool[2]
+      ? sentencePool[2]
+      : `El desarrollo del tema mantiene impacto en Argentina por sus efectos inmediatos y por las decisiones que siguen en curso.`,
+    sentencePool[3]
+      ? sentencePool[3]
+      : sentencePool[1] || `Todavía quedan aspectos bajo seguimiento mientras aparecen nuevas precisiones en las coberturas.`,
   ]
 
-  return paragraphs.map(paragraph => clipText(paragraph, 320))
+  return paragraphs
+    .filter(Boolean)
+    .map(paragraph => clipText(paragraph, 340))
 }
 
 function buildFallbackFacts(
@@ -231,6 +241,10 @@ function buildFallbackAttributedReporting(
     source: sentence.source,
     claim: sentence.text,
   }))
+}
+
+function pickHeroImage(articles: SourceArticleInput[]): string | undefined {
+  return articles.find(article => Boolean(article.imageUrl))?.imageUrl
 }
 
 function buildFallbackArticle(topic: string, articles: SourceArticleInput[]): ImpartialArticle {
@@ -257,6 +271,7 @@ function buildFallbackArticle(topic: string, articles: SourceArticleInput[]): Im
       attributedReporting,
       discrepancies: [],
     }),
+    heroImageUrl: pickHeroImage(articles),
     facts,
     discrepancies: [],
     sources: articles.map((article, index) => ({
@@ -335,6 +350,7 @@ export async function generateImpartialArticle(
           title: object.title,
           summary: object.summary,
           content: buildContent(object),
+          heroImageUrl: pickHeroImage(articles),
           facts,
           discrepancies: object.discrepancies,
           sources: articles.map((article, index) => ({

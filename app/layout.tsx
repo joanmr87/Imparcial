@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import { Playfair_Display, Source_Sans_3 } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const playfair = Playfair_Display({ 
@@ -21,21 +20,7 @@ export const metadata: Metadata = {
   generator: 'v0.app',
   keywords: ['noticias', 'argentina', 'imparcial', 'hechos', 'sin opinion', 'transparencia'],
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/icon.svg',
   },
 }
 
@@ -52,7 +37,6 @@ export default function RootLayout({
     <html lang="es">
       <body className={`${sourceSans.variable} ${playfair.variable} font-sans antialiased`}>
         {children}
-        <Analytics />
       </body>
     </html>
   )

@@ -28,9 +28,9 @@ describe("editorial fallback generation", () => {
     process.env.OPENAI_API_KEY = originalKey
 
     expect(result.article.title.length).toBeGreaterThan(20)
-    expect(result.article.summary).toContain("medios")
+    expect(result.article.summary).not.toContain("Diario Imparcial")
     expect(result.article.sources).toHaveLength(2)
     expect(result.article.category).toBe("Economia")
-    expect(result.article.content).toContain("Hechos confirmados o reportados por las fuentes")
+    expect(result.article.content).toContain("Claves del hecho")
   })
 })

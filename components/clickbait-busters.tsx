@@ -2,6 +2,7 @@ import type { ClickbaitBusterItem } from "@/lib/clickbait"
 
 interface ClickbaitBustersProps {
   items: ClickbaitBusterItem[]
+  generatedAt?: string
 }
 
 function answerClassName(answer: string): string {
@@ -10,8 +11,17 @@ function answerClassName(answer: string): string {
   return "text-2xl font-semibold leading-tight"
 }
 
-export function ClickbaitBusters({ items }: ClickbaitBustersProps) {
+export function ClickbaitBusters({ items, generatedAt }: ClickbaitBustersProps) {
   if (items.length === 0) return null
+
+  const updatedLabel = generatedAt
+    ? new Date(generatedAt).toLocaleString("es-AR", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null
 
   return (
     <section className="mt-16 rounded-[2rem] border border-border bg-[#f4efe7] px-6 py-8 text-stone-900 md:px-8">
@@ -28,9 +38,10 @@ export function ClickbaitBusters({ items }: ClickbaitBustersProps) {
             te la damos en una línea.
           </p>
         </div>
-        <p className="text-xs tracking-wide text-stone-500">
-          La gracia no es burlarse: es devolverte tiempo.
-        </p>
+        <div className="text-right text-xs tracking-wide text-stone-500">
+          <p>La gracia no es burlarse: es devolverte tiempo.</p>
+          {updatedLabel && <p className="mt-2">Edicion del dia actualizada {updatedLabel}</p>}
+        </div>
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

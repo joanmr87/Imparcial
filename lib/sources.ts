@@ -72,7 +72,22 @@ export const NEWS_SOURCES: NewsSource[] = [
     website: 'https://www.perfil.com',
     priority: 'medium'
   },
-  // Disabled until a stable feed path is confirmed again
+  {
+    id: 'c5n',
+    name: 'C5N',
+    rssUrls: [
+      'https://www.c5n.com/rss/pages/home.xml',
+      'https://www.c5n.com/rss/pages/politica.xml',
+      'https://www.c5n.com/rss/pages/economia.xml',
+      'https://www.c5n.com/rss/pages/sociedad.xml',
+      'https://www.c5n.com/rss/pages/deportes.xml',
+    ],
+    website: 'https://www.c5n.com',
+    priority: 'medium',
+    enabled: true,
+    notes: 'Official RSS catalog published at c5n.com/rss'
+  },
+  // Official national outlets with stable or cataloged RSS paths
   {
     id: 'infobae',
     name: 'Infobae',
@@ -120,16 +135,16 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'minutouno',
     name: 'Minuto Uno',
     rssUrls: [
-      'https://www.minutouno.com/rss/politica',
-      'https://www.minutouno.com/rss/economia',
-      'https://www.minutouno.com/rss/sociedad',
-      'https://www.minutouno.com/rss/deportes',
-      'https://www.minutouno.com/rss/mundo',
+      'https://www.minutouno.com/rss/pages/politica.xml',
+      'https://www.minutouno.com/rss/pages/economia.xml',
+      'https://www.minutouno.com/rss/pages/sociedad.xml',
+      'https://www.minutouno.com/rss/pages/deportes.xml',
+      'https://www.minutouno.com/rss/pages/mundo.xml',
     ],
     website: 'https://www.minutouno.com',
     priority: 'medium',
     enabled: true,
-    notes: 'Official RSS section endpoints linked from minutouno.com/rss'
+    notes: 'Official RSS catalog published at minutouno.com/rss'
   },
   // Low priority - add carefully because some feeds challenge bots
   {

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import type { FactStatus, ImpartialArticle, SchemaStatus, Source } from "./types"
+import type { FactStatus, ImpartialArticle, SchemaStatus, SiteSnapshot, Source } from "./types"
 
 type DatabaseArticleRow = {
   id: string
@@ -7,6 +7,7 @@ type DatabaseArticleRow = {
   slug: string
   summary: string
   content: string
+  hero_image_url: string | null
   category: string | null
   featured: boolean
   published_at: string
@@ -36,6 +37,16 @@ type DatabaseFactRow = {
   created_at: string
 }
 
+type DatabaseSiteSnapshotRow = {
+  id: string
+  snapshot_type: string
+  snapshot_date: string
+  snapshot_slot: string
+  payload: unknown
+  created_at: string
+  updated_at: string
+}
+
 const BASE_EDITORIAL_TABLES = ["articles", "sources", "facts"] as const
 const PIPELINE_TABLES = [
   "ingestion_runs",
@@ -43,6 +54,7 @@ const PIPELINE_TABLES = [
   "raw_article_clusters",
   "generated_article_runs",
   "article_publication_events",
+  "site_snapshots",
 ] as const
 
 function getAdminClient() {
@@ -98,6 +110,7 @@ function mapArticleRecord(row: DatabaseArticleRow): ImpartialArticle {
     title: row.title,
     summary: row.summary,
     content: row.content,
+    heroImageUrl: row.hero_image_url || undefined,
     facts,
     discrepancies: [],
     sources,
@@ -111,6 +124,18 @@ function mapArticleRecord(row: DatabaseArticleRow): ImpartialArticle {
       : facts.some(fact => fact.status === "developing" || fact.status === "reported")
         ? "developing"
         : "confirmed",
+  }
+}
+
+function mapSiteSnapshotRecord<TPayload>(row: DatabaseSiteSnapshotRow): SiteSnapshot<TPayload> {
+  return {
+    id: row.id,
+    snapshotType: row.snapshot_type,
+    snapshotDate: row.snapshot_date,
+    snapshotSlot: row.snapshot_slot,
+    payload: row.payload as TPayload,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
 }
 
@@ -196,6 +221,7 @@ export async function upsertGeneratedArticle(article: ImpartialArticle) {
     slug: article.slug,
     summary: article.summary,
     content: article.content,
+    hero_image_url: article.heroImageUrl || null,
     category: article.category,
     featured: false,
     published_at: article.createdAt || now,
@@ -262,4 +288,78 @@ export async function upsertGeneratedArticle(article: ImpartialArticle) {
   }
 
   return articleId
+}
+
+export async function getSiteSnapshot<TPayload>(
+  snapshotType: string,
+  snapshotDate: string,
+  snapshotSlot = "default"
+): Promise<SiteSnapshot<TPayload> | null> {
+  const supabaseAdmin = getAdminClient()
+  const { data, error } = await supabaseAdmin
+    .from("site_snapshots")
+    .select("*")
+    .eq("snapshot_type", snapshotType)
+    .eq("snapshot_date", snapshotDate)
+    .eq("snapshot_slot", snapshotSlot)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+
+  return mapSiteSnapshotRecord<TPayload>(data as DatabaseSiteSnapshotRow)
+}
+
+export async function getLatestSiteSnapshot<TPayload>(
+  snapshotType: string,
+  snapshotSlot?: string
+): Promise<SiteSnapshot<TPayload> | null> {
+  const supabaseAdmin = getAdminClient()
+  let query = supabaseAdmin
+    .from("site_snapshots")
+    .select("*")
+    .eq("snapshot_type", snapshotType)
+    .order("snapshot_date", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(1)
+
+  if (snapshotSlot) {
+    query = query.eq("snapshot_slot", snapshotSlot)
+  }
+
+  const { data, error } = await query.maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+
+  return mapSiteSnapshotRecord<TPayload>(data as DatabaseSiteSnapshotRow)
+}
+
+export async function upsertSiteSnapshot<TPayload>(input: {
+  snapshotType: string
+  snapshotDate: string
+  snapshotSlot?: string
+  payload: TPayload
+}) {
+  const supabaseAdmin = getAdminClient()
+  const now = new Date().toISOString()
+  const payload = {
+    snapshot_type: input.snapshotType,
+    snapshot_date: input.snapshotDate,
+    snapshot_slot: input.snapshotSlot || "default",
+    payload: input.payload as unknown as Record<string, unknown>,
+    updated_at: now,
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("site_snapshots")
+    .upsert(payload, {
+      onConflict: "snapshot_type,snapshot_date,snapshot_slot",
+    })
+    .select("*")
+    .single()
+
+  if (error) throw error
+
+  return mapSiteSnapshotRecord<TPayload>(data as DatabaseSiteSnapshotRow)
 }

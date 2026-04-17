@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Header } from "@/components/header"
+import { formatArgentinaLongDate } from "@/lib/date-format"
 import { Separator } from "@/components/ui/separator"
 
 const promises = [
@@ -33,9 +34,11 @@ const steps = [
 ]
 
 export default function MethodologyPage() {
+  const dateString = formatArgentinaLongDate()
+
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header dateString={dateString} />
 
       <main className="mx-auto max-w-5xl px-4 py-10">
         <section className="max-w-3xl">

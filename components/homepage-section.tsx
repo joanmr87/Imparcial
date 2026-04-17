@@ -30,7 +30,7 @@ export function HomepageSectionBlock({ section }: HomepageSectionProps) {
         </Link>
       </div>
 
-      <div className="mt-8 space-y-8">
+      <div className="mt-8 space-y-8 rounded-[1.75rem] bg-card/40 p-4 md:p-6">
         {section.lead && <ArticleCard article={section.lead} variant="large" />}
 
         {section.articles.length > 0 && (

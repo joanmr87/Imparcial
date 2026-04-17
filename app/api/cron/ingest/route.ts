@@ -1,4 +1,6 @@
+import { revalidatePath } from "next/cache"
 import { NextResponse } from "next/server"
+import { refreshDailyClickbaitEdition } from "@/lib/clickbait"
 import { generatePipelineRun } from "@/lib/pipeline"
 
 function isAuthorized(request: Request) {
@@ -18,20 +20,28 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await generatePipelineRun({
-      minSources: 2,
-      limit: 18,
-      generateArticles: true,
-      persist: true,
-    })
+    const [result, clickbaitEdition] = await Promise.all([
+      generatePipelineRun({
+        minSources: 2,
+        limit: 18,
+        generateArticles: true,
+        persist: true,
+      }),
+      refreshDailyClickbaitEdition(),
+    ])
+
+    revalidatePath("/")
+    revalidatePath("/nota/[slug]", "page")
 
     return NextResponse.json({
       success: true,
       timestamp: result.timestamp,
       generatedCount: result.generated.length,
+      clickbaitCount: clickbaitEdition.items.length,
       errorCount: result.errors.length,
       warnings: result.warnings,
       schema: result.schema,
+      clickbaitEdition,
       generated: result.generated.map(item => ({
         clusterId: item.cluster.id,
         title: item.article.title,

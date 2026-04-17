@@ -33,6 +33,7 @@ export interface ImpartialArticle {
   title: string
   summary: string
   content: string
+  heroImageUrl?: string
   facts: FactClaim[]
   discrepancies: Discrepancy[]
   sources: Source[]
@@ -78,4 +79,14 @@ export interface SchemaStatus {
   ready: boolean
   checkedTables: string[]
   missingTables: string[]
+}
+
+export interface SiteSnapshot<TPayload = Record<string, unknown>> {
+  id: string
+  snapshotType: string
+  snapshotDate: string
+  snapshotSlot: string
+  payload: TPayload
+  createdAt: string
+  updatedAt: string
 }

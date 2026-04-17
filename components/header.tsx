@@ -12,20 +12,15 @@ const navItems = [
   { label: "Metodologia", href: "/metodologia" },
 ]
 
-export function Header() {
+interface HeaderProps {
+  dateString: string
+}
+
+export function Header({ dateString }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Get current date in Spanish
-  const today = new Date()
-  const dateString = today.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  })
-
   return (
-    <header className="border-b border-border">
+    <header className="border-b border-border bg-background/90 backdrop-blur-sm">
       <div className="mx-auto max-w-5xl px-4">
         {/* Date bar */}
         <div className="border-b border-border py-2">
@@ -41,7 +36,7 @@ export function Header() {
               Diario Imparcial
             </h1>
           </Link>
-          <p className="mt-2 text-sm tracking-widest text-muted-foreground">
+          <p className="mt-2 text-sm tracking-[0.28em] text-muted-foreground uppercase">
             La noticia, sin adjetivos
           </p>
         </div>

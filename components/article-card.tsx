@@ -20,11 +20,27 @@ function SourceTagList({ article }: { article: ImpartialArticle }) {
       {tags.map(tag => (
         <span
           key={tag}
-          className="rounded-full border border-border px-2.5 py-1 text-[11px] tracking-wide text-muted-foreground"
+          className="rounded-full border border-border/80 bg-background/80 px-2.5 py-1 text-[11px] tracking-wide text-muted-foreground"
         >
           {tag}
         </span>
       ))}
+    </div>
+  )
+}
+
+function ArticleCardImage({ article, tall = false }: { article: ImpartialArticle; tall?: boolean }) {
+  if (!article.heroImageUrl) return null
+
+  return (
+    <div className={`overflow-hidden bg-muted ${tall ? "aspect-[16/10]" : "aspect-[16/9]"}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={article.heroImageUrl}
+        alt={article.title}
+        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
+        loading="lazy"
+      />
     </div>
   )
 }
@@ -35,20 +51,23 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
   if (variant === "featured") {
     return (
       <Link href={`/nota/${article.slug}`} className="group block">
-        <article>
-          <p className="text-xs tracking-widest text-muted-foreground uppercase">
-            {article.category}
-          </p>
-          <h2 className="mt-2 font-serif text-3xl font-semibold leading-tight text-foreground transition-colors group-hover:text-muted-foreground md:text-4xl lg:text-5xl text-balance">
-            {article.title}
-          </h2>
-          <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
-            {article.summary}
-          </p>
-          <p className="mt-4 text-xs text-muted-foreground">
-            {authorLine}
-          </p>
-          <SourceTagList article={article} />
+        <article className="overflow-hidden rounded-[1.75rem] border border-border/80 bg-card/90 shadow-[0_18px_50px_rgba(28,28,28,0.06)]">
+          <ArticleCardImage article={article} tall />
+          <div className="px-5 py-5 md:px-6">
+            <p className="text-xs tracking-widest text-muted-foreground uppercase">
+              {article.category}
+            </p>
+            <h2 className="mt-2 font-serif text-3xl font-semibold leading-tight text-foreground transition-colors group-hover:text-muted-foreground md:text-4xl lg:text-5xl text-balance">
+              {article.title}
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
+              {article.summary}
+            </p>
+            <p className="mt-4 text-xs text-muted-foreground">
+              {authorLine}
+            </p>
+            <SourceTagList article={article} />
+          </div>
         </article>
       </Link>
     )
@@ -57,14 +76,39 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
   if (variant === "large") {
     return (
       <Link href={`/nota/${article.slug}`} className="group block">
-        <article>
+        <article className="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card/80 shadow-[0_14px_36px_rgba(28,28,28,0.05)]">
+          <ArticleCardImage article={article} />
+          <div className="px-4 py-4 md:px-5">
+            <p className="text-xs tracking-widest text-muted-foreground uppercase">
+              {article.category}
+            </p>
+            <h3 className="mt-2 font-serif text-2xl font-semibold leading-tight text-foreground transition-colors group-hover:text-muted-foreground md:text-3xl text-balance">
+              {article.title}
+            </h3>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
+              {article.summary}
+            </p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              {authorLine}
+            </p>
+            <SourceTagList article={article} />
+          </div>
+        </article>
+      </Link>
+    )
+  }
+
+  if (variant === "small") {
+    return (
+      <Link href={`/nota/${article.slug}`} className="group block">
+        <article className="rounded-[1.25rem] border border-border/70 bg-card/70 px-4 py-4 transition-shadow hover:shadow-[0_10px_24px_rgba(28,28,28,0.05)]">
           <p className="text-xs tracking-widest text-muted-foreground uppercase">
             {article.category}
           </p>
-          <h3 className="mt-2 font-serif text-2xl font-semibold leading-tight text-foreground transition-colors group-hover:text-muted-foreground md:text-3xl text-balance">
+          <h3 className="mt-1 font-serif text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-muted-foreground text-balance">
             {article.title}
           </h3>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground line-clamp-3">
             {article.summary}
           </p>
           <p className="mt-3 text-xs text-muted-foreground">
@@ -76,29 +120,10 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
     )
   }
 
-  if (variant === "small") {
-    return (
-      <Link href={`/nota/${article.slug}`} className="group block">
-        <article>
-          <p className="text-xs tracking-widest text-muted-foreground uppercase">
-            {article.category}
-          </p>
-          <h3 className="mt-1 font-serif text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-muted-foreground text-balance">
-            {article.title}
-          </h3>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {authorLine}
-          </p>
-          <SourceTagList article={article} />
-        </article>
-      </Link>
-    )
-  }
-
   if (variant === "minimal") {
     return (
       <Link href={`/nota/${article.slug}`} className="group block">
-        <article className="flex items-start gap-3">
+        <article className="flex items-start gap-3 rounded-[1.15rem] border border-border/70 bg-card/65 px-3.5 py-3.5">
           <span className="font-serif text-2xl font-light text-muted-foreground/50">
             {article.category.charAt(0)}
           </span>
@@ -116,10 +141,9 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
     )
   }
 
-  // Default: medium
   return (
     <Link href={`/nota/${article.slug}`} className="group block">
-      <article>
+      <article className="rounded-[1.35rem] border border-border/70 bg-card/75 px-4 py-4 transition-shadow hover:shadow-[0_12px_28px_rgba(28,28,28,0.05)]">
         <p className="text-xs tracking-widest text-muted-foreground uppercase">
           {article.category}
         </p>

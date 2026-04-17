@@ -7,6 +7,7 @@ create table if not exists public.articles (
   slug text not null unique,
   summary text not null,
   content text not null,
+  hero_image_url text,
   category text,
   featured boolean default false,
   published_at timestamp with time zone default now(),
@@ -101,6 +102,17 @@ create table if not exists public.article_publication_events (
   created_at timestamp with time zone default now()
 );
 
+create table if not exists public.site_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  snapshot_type text not null,
+  snapshot_date date not null,
+  snapshot_slot text not null default 'default',
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now(),
+  unique (snapshot_type, snapshot_date, snapshot_slot)
+);
+
 alter table public.articles enable row level security;
 alter table public.sources enable row level security;
 alter table public.facts enable row level security;
@@ -110,6 +122,7 @@ alter table public.raw_article_clusters enable row level security;
 alter table public.raw_article_cluster_items enable row level security;
 alter table public.generated_article_runs enable row level security;
 alter table public.article_publication_events enable row level security;
+alter table public.site_snapshots enable row level security;
 
 -- Public read access for published editorial content
 drop policy if exists "articles_select_public" on public.articles;
@@ -127,6 +140,9 @@ drop policy if exists "sources_insert_service" on public.sources;
 drop policy if exists "sources_delete_service" on public.sources;
 drop policy if exists "facts_insert_service" on public.facts;
 drop policy if exists "facts_delete_service" on public.facts;
+drop policy if exists "site_snapshots_select_public" on public.site_snapshots;
+drop policy if exists "site_snapshots_insert_service" on public.site_snapshots;
+drop policy if exists "site_snapshots_update_service" on public.site_snapshots;
 
 create policy "articles_insert_service" on public.articles for insert with check (true);
 create policy "articles_update_service" on public.articles for update using (true);
@@ -135,6 +151,9 @@ create policy "sources_insert_service" on public.sources for insert with check (
 create policy "sources_delete_service" on public.sources for delete using (true);
 create policy "facts_insert_service" on public.facts for insert with check (true);
 create policy "facts_delete_service" on public.facts for delete using (true);
+create policy "site_snapshots_select_public" on public.site_snapshots for select using (true);
+create policy "site_snapshots_insert_service" on public.site_snapshots for insert with check (true);
+create policy "site_snapshots_update_service" on public.site_snapshots for update using (true);
 
 create index if not exists articles_slug_idx on public.articles(slug);
 create index if not exists articles_category_idx on public.articles(category);
@@ -147,3 +166,4 @@ create index if not exists raw_articles_hash_idx on public.raw_articles(content_
 create index if not exists raw_clusters_sources_idx on public.raw_article_clusters(sources_count desc, last_published_at desc);
 create index if not exists generated_runs_article_idx on public.generated_article_runs(article_id, created_at desc);
 create index if not exists publication_events_article_idx on public.article_publication_events(article_id, created_at desc);
+create index if not exists site_snapshots_lookup_idx on public.site_snapshots(snapshot_type, snapshot_date desc, updated_at desc);

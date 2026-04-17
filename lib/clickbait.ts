@@ -5,6 +5,7 @@ import { load } from "cheerio"
 import { z } from "zod"
 import { getLatestFeedSnapshot } from "./feed-store"
 import { inferCategoryFromItem } from "./news-categories"
+import { getArgentinaDateKey, safeGetLatestSiteSnapshot, safeGetSiteSnapshot, safeUpsertSiteSnapshot } from "./site-snapshots"
 import type { RSSItem } from "./types"
 
 export interface ClickbaitBusterItem {
@@ -14,6 +15,15 @@ export interface ClickbaitBusterItem {
   source: string
   url: string
   imageUrl?: string
+  rankingScore?: number
+}
+
+export interface ClickbaitSnapshotPayload {
+  generatedAt: string
+  snapshotDate: string
+  freshCount: number
+  reusedCount: number
+  items: ClickbaitBusterItem[]
 }
 
 interface ClickbaitCandidate extends RSSItem {
@@ -32,6 +42,10 @@ const clickbaitSelectionSchema = z.object({
     })
   ),
 })
+
+const CLICKBAIT_SNAPSHOT_TYPE = "clickbait"
+const CLICKBAIT_SNAPSHOT_SLOT = "daily"
+const CLICKBAIT_TARGET_ITEMS = 6
 
 const HINT_PATTERNS = [
   /\?/,
@@ -451,7 +465,7 @@ function heuristicImportanceScore(item: RSSItem): number {
   return categoryWeight * 3 + scorePotentialClickbait(item) - Math.min(freshnessHours, 8) * 0.2 - foreignPenalty
 }
 
-async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
+export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
   const { items } = await getLatestFeedSnapshot()
   const candidatePool = dedupeCandidates(
     items
@@ -484,73 +498,73 @@ async function buildClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
 
   if (process.env.OPENAI_API_KEY) {
     try {
-    const { object } = await generateObject({
-      model: openai(process.env.OPENAI_MODEL || "gpt-5-nano"),
-      schema: clickbaitSelectionSchema,
-      system: [
-        "Sos editor de la seccion Te ahorramos el click de Diario Imparcial.",
-        "Tu trabajo es detectar titulares anzuelo que esconden un dato concreto y devolver exactamente ese dato de forma corta, filosa y util.",
-        "Esto aplica a nombres, convocados, listas, fechas, horarios, lugares, cifras, temperaturas, porcentajes o cualquier dato que el lector tuvo que abrir para encontrar.",
-        "No te interesa si el titulo es largo: solo entra si oculta una respuesta concreta.",
-        "Exclui analisis, opinion, vivos, cronicas amplias, rankings sin respuesta clara o temas donde la nota no resuelve de verdad la pregunta.",
-        "Si la respuesta es una lista, devolvela como lista compacta separada por comas.",
-        "Si es un pronostico, devolvelo tipo 'hasta 39°' o 'llueve el jueves'.",
-        "Si es una cifra estimada, devolvela tipo 'aprox. 4%'.",
-        "Si es una convocatoria o citacion, devolve solo los nombres.",
-        "Si el titular oculta una identidad sin preguntar de forma directa, por ejemplo 'se lesionó un jugador' o 'una cantante se irá del país', devolvé el nombre propio.",
-        "Priorizá temas de Argentina o de impacto directo para lectores argentinos. Dejá afuera notas extranjeras sin relevancia local clara.",
-        "No inventes. Si el contexto no permite una respuesta clara, include=false.",
-        "No uses frases vagas como 'No lo dice claro', 'depende' o 'hay que leer la nota'.",
-        "Escribi en espanol de Argentina. La respuesta tiene que poder entrar en una card.",
-        "Ejemplos de criterio: 'Cuales son los 10 autos...' => lista de autos. 'La citacion...' => nombres convocados. 'Hasta que punto podria llegar la inflacion...' => aprox. con numero. 'Hasta cuando sigue la ola de calor...' => temperatura o dia clave. 'Sorpresa en musica argentina...' => nombre propio.",
-        "Da importanceScore segun interes general para una audiencia argentina, clickbaitScore segun cuan cebado este el titular y confidenceScore segun cuan bien respaldada queda la respuesta en el contexto.",
-      ].join(" "),
-      prompt,
-    })
-
-    const answersById = new Map<string, { answer: string; totalScore: number }>()
-
-    for (const item of object.items) {
-      if (!item.include) continue
-
-      const answer = truncateAnswer(item.answer)
-      if (!answer || !isValidClickbaitAnswer(answer, enrichedCandidates[Number(item.id.split(":")[1])]?.title)) continue
-
-      answersById.set(item.id, {
-        answer,
-        totalScore: item.importanceScore * 2 + item.clickbaitScore + item.confidenceScore,
+      const { object } = await generateObject({
+        model: openai(process.env.OPENAI_MODEL || "gpt-5-nano"),
+        schema: clickbaitSelectionSchema,
+        system: [
+          "Sos editor de la seccion Te ahorramos el click de Diario Imparcial.",
+          "Tu trabajo es detectar titulares anzuelo que esconden un dato concreto y devolver exactamente ese dato de forma corta, filosa y util.",
+          "Esto aplica a nombres, convocados, listas, fechas, horarios, lugares, cifras, temperaturas, porcentajes o cualquier dato que el lector tuvo que abrir para encontrar.",
+          "No te interesa si el titulo es largo: solo entra si oculta una respuesta concreta.",
+          "Exclui analisis, opinion, vivos, cronicas amplias, rankings sin respuesta clara o temas donde la nota no resuelve de verdad la pregunta.",
+          "Si la respuesta es una lista, devolvela como lista compacta separada por comas.",
+          "Si es un pronostico, devolvelo tipo 'hasta 39°' o 'llueve el jueves'.",
+          "Si es una cifra estimada, devolvela tipo 'aprox. 4%'.",
+          "Si es una convocatoria o citacion, devolve solo los nombres.",
+          "Si el titular oculta una identidad sin preguntar de forma directa, por ejemplo 'se lesionó un jugador' o 'una cantante se irá del país', devolvé el nombre propio.",
+          "Priorizá temas de Argentina o de impacto directo para lectores argentinos. Dejá afuera notas extranjeras sin relevancia local clara.",
+          "No inventes. Si el contexto no permite una respuesta clara, include=false.",
+          "No uses frases vagas como 'No lo dice claro', 'depende' o 'hay que leer la nota'.",
+          "Escribi en espanol de Argentina. La respuesta tiene que poder entrar en una card.",
+          "Ejemplos de criterio: 'Cuales son los 10 autos...' => lista de autos. 'La citacion...' => nombres convocados. 'Hasta que punto podria llegar la inflacion...' => aprox. con numero. 'Hasta cuando sigue la ola de calor...' => temperatura o dia clave. 'Sorpresa en musica argentina...' => nombre propio.",
+          "Da importanceScore segun interes general para una audiencia argentina, clickbaitScore segun cuan cebado este el titular y confidenceScore segun cuan bien respaldada queda la respuesta en el contexto.",
+        ].join(" "),
+        prompt,
       })
-    }
 
-    const selectedItems: Array<ClickbaitBusterItem & { totalScore: number }> = []
+      const answersById = new Map<string, { answer: string; totalScore: number }>()
 
-    for (const [index, item] of enrichedCandidates.entries()) {
-      const id = `${item.sourceId}:${index}`
-      const ranked = answersById.get(id)
+      for (const item of object.items) {
+        if (!item.include) continue
 
-      if (!ranked) continue
+        const answer = truncateAnswer(item.answer)
+        if (!answer || !isValidClickbaitAnswer(answer, enrichedCandidates[Number(item.id.split(":")[1])]?.title)) continue
 
-      selectedItems.push({
-        id: `${item.sourceId}:${item.link}`,
-        title: item.title,
-        answer: ranked.answer,
-        source: item.source,
-        url: item.link,
-        imageUrl: item.imageUrl,
-        totalScore: ranked.totalScore,
-      })
-    }
+        answersById.set(item.id, {
+          answer,
+          totalScore: item.importanceScore * 2 + item.clickbaitScore + item.confidenceScore,
+        })
+      }
 
-    const rankedByAi = selectedItems
-      .sort((left, right) => right.totalScore - left.totalScore)
-      .slice(0, 6)
-      .map(({ totalScore: _totalScore, ...item }) => item)
+      const selectedItems: Array<ClickbaitBusterItem & { totalScore: number }> = []
+
+      for (const [index, item] of enrichedCandidates.entries()) {
+        const id = `${item.sourceId}:${index}`
+        const ranked = answersById.get(id)
+
+        if (!ranked) continue
+
+        selectedItems.push({
+          id: `${item.sourceId}:${item.link}`,
+          title: item.title,
+          answer: ranked.answer,
+          source: item.source,
+          url: item.link,
+          imageUrl: item.imageUrl,
+          totalScore: ranked.totalScore,
+        })
+      }
+
+      const rankedByAi = selectedItems
+        .sort((left, right) => right.totalScore - left.totalScore)
+        .slice(0, 6)
+        .map(({ totalScore, ...item }) => ({ ...item, rankingScore: totalScore }))
 
       if (rankedByAi.length >= 3) return rankedByAi
 
       if (rankedByAi.length > 0) {
         const fallbackItems = buildFallbackItems(enrichedCandidates)
-        const merged = [...rankedByAi]
+        const merged: ClickbaitBusterItem[] = [...rankedByAi]
 
         for (const fallbackItem of fallbackItems) {
           if (merged.some(item => item.id === fallbackItem.id)) continue
@@ -583,6 +597,7 @@ function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterIt
         source: item.source,
         url: item.link,
         imageUrl: item.imageUrl,
+        rankingScore: heuristicScore,
         heuristicScore,
       }
     })
@@ -594,8 +609,116 @@ function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterIt
   return fallbackItems
 }
 
-export const getClickbaitBusters = unstable_cache(
-  buildClickbaitBusters,
-  ["clickbait-busters-v3"],
-  { revalidate: 60 * 30 }
+function clickbaitRankingScore(item: ClickbaitBusterItem): number {
+  return item.rankingScore || 0
+}
+
+function dedupeClickbaitItems(items: ClickbaitBusterItem[]): ClickbaitBusterItem[] {
+  const merged = new Map<string, ClickbaitBusterItem>()
+
+  for (const item of items) {
+    const existing = merged.get(item.id)
+    if (!existing || clickbaitRankingScore(item) > clickbaitRankingScore(existing)) {
+      merged.set(item.id, item)
+    }
+  }
+
+  return [...merged.values()]
+}
+
+function mergeClickbaitItems(
+  freshItems: ClickbaitBusterItem[],
+  previousItems: ClickbaitBusterItem[],
+  limit = CLICKBAIT_TARGET_ITEMS
+): ClickbaitBusterItem[] {
+  const merged = dedupeClickbaitItems([...freshItems, ...previousItems])
+    .sort((left, right) => clickbaitRankingScore(right) - clickbaitRankingScore(left))
+    .slice(0, limit)
+
+  return merged
+}
+
+const getEmergencyClickbaitBusters = unstable_cache(
+  buildFreshClickbaitBusters,
+  ["clickbait-busters-emergency-v1"],
+  { revalidate: 60 * 60 * 12 }
 )
+
+export async function refreshDailyClickbaitEdition(options: {
+  force?: boolean
+  snapshotDate?: string
+} = {}): Promise<ClickbaitSnapshotPayload> {
+  const snapshotDate = options.snapshotDate || getArgentinaDateKey()
+
+  if (!options.force) {
+    const existingSnapshot = await safeGetSiteSnapshot<ClickbaitSnapshotPayload>(
+      CLICKBAIT_SNAPSHOT_TYPE,
+      snapshotDate,
+      CLICKBAIT_SNAPSHOT_SLOT
+    )
+    if (existingSnapshot) {
+      return existingSnapshot.payload
+    }
+  }
+
+  const latestSnapshot = await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
+    CLICKBAIT_SNAPSHOT_TYPE,
+    CLICKBAIT_SNAPSHOT_SLOT
+  )
+  const previousItems = latestSnapshot?.snapshotDate === snapshotDate
+    ? []
+    : (latestSnapshot?.payload.items || [])
+  const freshItems = await buildFreshClickbaitBusters()
+  const items = mergeClickbaitItems(freshItems, previousItems)
+  const payload: ClickbaitSnapshotPayload = {
+    generatedAt: new Date().toISOString(),
+    snapshotDate,
+    freshCount: freshItems.length,
+    reusedCount: Math.max(0, items.length - freshItems.length),
+    items,
+  }
+
+  const storedSnapshot = await safeUpsertSiteSnapshot({
+    snapshotType: CLICKBAIT_SNAPSHOT_TYPE,
+    snapshotDate,
+    snapshotSlot: CLICKBAIT_SNAPSHOT_SLOT,
+    payload,
+  })
+
+  return storedSnapshot?.payload || payload
+}
+
+export async function getPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload> {
+  const snapshotDate = getArgentinaDateKey()
+  const todaySnapshot = await safeGetSiteSnapshot<ClickbaitSnapshotPayload>(
+    CLICKBAIT_SNAPSHOT_TYPE,
+    snapshotDate,
+    CLICKBAIT_SNAPSHOT_SLOT
+  )
+
+  if (todaySnapshot) {
+    return todaySnapshot.payload
+  }
+
+  const latestSnapshot = await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
+    CLICKBAIT_SNAPSHOT_TYPE,
+    CLICKBAIT_SNAPSHOT_SLOT
+  )
+  if (latestSnapshot) {
+    return latestSnapshot.payload
+  }
+
+  const emergencyItems = await getEmergencyClickbaitBusters()
+  return {
+    generatedAt: new Date().toISOString(),
+    snapshotDate,
+    freshCount: emergencyItems.length,
+    reusedCount: 0,
+    items: emergencyItems.slice(0, CLICKBAIT_TARGET_ITEMS),
+  }
+}
+
+export async function getClickbaitBusters(): Promise<ClickbaitBusterItem[]> {
+  const edition = await getPublishedClickbaitEdition()
+  return edition.items
+}

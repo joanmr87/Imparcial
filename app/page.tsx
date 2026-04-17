@@ -4,10 +4,12 @@ import { ClickbaitBustersSection } from "@/components/clickbait-busters-section"
 import { Header } from "@/components/header"
 import { HomepageSectionBlock } from "@/components/homepage-section"
 import { Separator } from "@/components/ui/separator"
+import { getPublishedClickbaitEdition } from "@/lib/clickbait"
+import { formatArgentinaLongDate } from "@/lib/date-format"
 import { getHomepageEdition } from "@/lib/homepage"
 import { normalizeSectionSlug } from "@/lib/news-categories"
 
-export const dynamic = "force-dynamic"
+export const revalidate = 900
 
 interface HomePageProps {
   searchParams?: Promise<{ seccion?: string }>
@@ -16,15 +18,19 @@ interface HomePageProps {
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = searchParams ? await searchParams : undefined
   const activeSection = normalizeSectionSlug(params?.seccion)
-  const { articles, sections, activeSectionLabel } = await getHomepageEdition(activeSection)
+  const dateString = formatArgentinaLongDate()
+  const [{ articles, sections, activeSectionLabel }, clickbaitEdition] = await Promise.all([
+    getHomepageEdition(activeSection),
+    getPublishedClickbaitEdition(),
+  ])
 
   const featured = articles[0]
   const secondary = articles.slice(1, 3)
   const sidebar = articles.slice(3, 8)
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(214,203,184,0.22),_transparent_38%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(250,247,241,0.96))]">
+      <Header dateString={dateString} />
 
       <main className="mx-auto max-w-5xl px-4 py-10">
         {activeSection && (
@@ -51,13 +57,30 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </section>
         )}
 
-        <section className="mb-8 rounded-[1.5rem] border border-border bg-card/30 px-5 py-4">
-          <p className="text-xs tracking-widest text-muted-foreground uppercase">
-            Como se hace esta edicion
-          </p>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Diario generado íntegramente con IA. Toma información pública de distintos medios, cruza coberturas sobre el mismo hecho y publica una síntesis que busca reducir el sesgo de una sola mirada.
-          </p>
+        <section className="mb-8 overflow-hidden rounded-[1.75rem] border border-border bg-card/80 shadow-[0_18px_50px_rgba(28,28,28,0.05)]">
+          <div className="grid gap-4 px-5 py-5 md:grid-cols-[1.15fr_0.85fr] md:px-6">
+            <div>
+              <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+                Edicion curada por sistema editorial
+              </p>
+              <h2 className="mt-3 font-serif text-2xl font-semibold text-foreground md:text-3xl">
+                Varias coberturas, una lectura más clara
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
+                La portada publica sintesis construidas a partir de coincidencias reales entre distintos medios argentinos. La edición general se renueva dos veces por día y prioriza conservar los temas más sólidos cuando todavía no hay reemplazo suficiente.
+              </p>
+            </div>
+            <div className="rounded-[1.5rem] border border-border bg-secondary/45 p-4">
+              <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+                Ritmo del diario
+              </p>
+              <div className="mt-4 space-y-3 text-sm text-foreground/80">
+                <p>Dos ediciones generales por día, una a la mañana y otra a la tarde.</p>
+                <p>Clickbait procesado una sola vez por jornada, con fallback de lo mejor del día anterior.</p>
+                <p>Portada armada con notas persistidas, no con regeneración permanente al abrir el sitio.</p>
+              </div>
+            </div>
+          </div>
         </section>
 
         <div className="grid gap-10 lg:grid-cols-3 lg:gap-12">
@@ -100,7 +123,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </aside>
         </div>
 
-        <ClickbaitBustersSection />
+        <ClickbaitBustersSection
+          items={clickbaitEdition.items}
+          generatedAt={clickbaitEdition.generatedAt}
+        />
 
         <section className="mt-16 border-t border-border pt-10">
           <div className="mx-auto max-w-2xl text-center">
@@ -122,8 +148,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <span className="block font-serif text-2xl font-semibold text-foreground">3x</span>
-                <span>Actualizaciones diarias</span>
+                <span className="block font-serif text-2xl font-semibold text-foreground">2x</span>
+                <span>Ediciones diarias</span>
               </div>
             </div>
           </div>
@@ -133,7 +159,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <HomepageSectionBlock key={section.slug} section={section} />
         ))}
 
-        <section className="mt-16 rounded-[2rem] border border-border bg-card/40 px-6 py-8 md:px-10">
+        <section className="mt-16 rounded-[2rem] border border-border bg-card/65 px-6 py-8 shadow-[0_22px_60px_rgba(29,29,29,0.05)] md:px-10">
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
             <div>
               <p className="text-xs tracking-widest text-muted-foreground uppercase">

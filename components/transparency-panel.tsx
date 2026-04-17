@@ -6,9 +6,29 @@ interface TransparencyPanelProps {
 }
 
 export function TransparencyPanel({ article }: TransparencyPanelProps) {
+  const updatedLabel = new Date(article.updatedAt).toLocaleString("es-AR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+
   return (
     <div className="space-y-8">
-      {/* Sources count */}
+      <div>
+        <p className="text-xs tracking-widest text-muted-foreground uppercase">
+          Como leer esta nota
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-foreground/80">
+          Esta síntesis resume coberturas coincidentes sobre un mismo hecho. El cuerpo prioriza contexto y hechos; este panel deja a la vista cuántas fuentes se usaron, qué puntos aparecen más firmes y dónde persisten diferencias.
+        </p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Actualizado {updatedLabel}
+        </p>
+      </div>
+
+      <Separator />
+
       <div>
         <p className="text-xs tracking-widest text-muted-foreground uppercase">
           Fuentes analizadas
@@ -23,10 +43,9 @@ export function TransparencyPanel({ article }: TransparencyPanelProps) {
 
       <Separator />
 
-      {/* Facts */}
       <div>
         <p className="text-xs tracking-widest text-muted-foreground uppercase">
-          Hechos confirmados
+          Puntos mas firmes
         </p>
         <ul className="mt-4 space-y-3">
           {article.facts.filter(f => f.status === 'confirmed').slice(0, 4).map((fact, index) => (
@@ -38,7 +57,6 @@ export function TransparencyPanel({ article }: TransparencyPanelProps) {
         </ul>
       </div>
 
-      {/* Discrepancies */}
       {article.discrepancies.length > 0 && (
         <>
           <Separator />
@@ -69,7 +87,6 @@ export function TransparencyPanel({ article }: TransparencyPanelProps) {
 
       <Separator />
 
-      {/* Sources list */}
       <div>
         <p className="text-xs tracking-widest text-muted-foreground uppercase">
           Medios consultados

@@ -8,8 +8,8 @@ const GENERATED_STOCK_LIMIT = 18
 const STOCK_CATEGORY_TARGETS = {
   Politica: 6,
   Economia: 4,
-  Sociedad: 4,
-  Deportes: 4,
+  Sociedad: 3,
+  Deportes: 5,
 } as const
 
 function inferClusterCategory(cluster: NewsCluster): string {
@@ -74,6 +74,6 @@ async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
 
 export const getGeneratedEditorialStock = unstable_cache(
   buildGeneratedEditorialStock,
-  ["generated-editorial-stock-v5"],
-  { revalidate: 60 * 30 }
+  ["generated-editorial-stock-v6"],
+  { revalidate: 60 * 60 * 12 }
 )

@@ -4,8 +4,19 @@ import { NextResponse } from "next/server"
 import { getEditorialSchemaStatus, getPipelineSchemaStatus } from "@/lib/supabase-admin"
 
 async function readMigrationSql() {
-  const sqlPath = path.join(process.cwd(), "scripts", "001_create_articles_schema.sql")
-  return fs.readFile(sqlPath, "utf8")
+  const scriptsDir = path.join(process.cwd(), "scripts")
+  const files = (await fs.readdir(scriptsDir))
+    .filter(file => /^\d+_.*\.sql$/.test(file))
+    .sort((left, right) => left.localeCompare(right))
+  const contents = await Promise.all(
+    files.map(async file => {
+      const sqlPath = path.join(scriptsDir, file)
+      const sql = await fs.readFile(sqlPath, "utf8")
+      return `-- ${file}\n${sql.trim()}`
+    })
+  )
+
+  return contents.join("\n\n")
 }
 
 export async function GET() {

@@ -67,9 +67,13 @@ function heuristicClusterScore(cluster: NewsCluster): number {
     Politica: 9,
     Economia: 8,
     Sociedad: 7,
-    Deportes: 6,
+    Deportes: 7,
     Internacional: 5,
   }[clusterCategory(cluster)] || 4
+
+  const sportsDepthBoost = clusterCategory(cluster) === "Deportes"
+    ? Math.min(cluster.sourcesCount, 4) * 1.5
+    : 0
 
   const freshnessHours = Math.max(
     0,
@@ -79,6 +83,7 @@ function heuristicClusterScore(cluster: NewsCluster): number {
   return categoryWeight * 4
     + cluster.sourcesCount * 5
     + Math.min(cluster.articles.length, 5) * 2
+    + sportsDepthBoost
     - Math.min(freshnessHours, 24) * 0.25
 }
 
