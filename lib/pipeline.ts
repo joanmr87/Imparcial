@@ -4,6 +4,10 @@ import { clusterNews, fetchAllFeeds } from "./rss-fetcher"
 import { getEditorialSchemaStatus, upsertGeneratedArticle } from "./supabase-admin"
 import type { ImpartialArticle, NewsCluster, PipelineWarning } from "./types"
 
+const FRESH_CLUSTER_WINDOW_HOURS = 36
+const RECENT_CLUSTER_WINDOW_HOURS = 72
+const MAX_CLUSTER_WINDOW_HOURS = 120
+
 export interface CollectClustersOptions {
   sourceIds?: string[]
   minSources?: number
@@ -14,6 +18,35 @@ export interface GeneratePipelineOptions extends CollectClustersOptions {
   generateArticles?: boolean
   persist?: boolean
   useAi?: boolean
+}
+
+function hoursSince(timestamp: string): number {
+  const date = new Date(timestamp).getTime()
+  if (Number.isNaN(date)) return MAX_CLUSTER_WINDOW_HOURS
+  return Math.max(0, (Date.now() - date) / (1000 * 60 * 60))
+}
+
+function selectClustersByRecency(clusters: NewsCluster[], limit: number): NewsCluster[] {
+  const sortedClusters = [...clusters].sort(
+    (left, right) => new Date(right.lastPublishedAt).getTime() - new Date(left.lastPublishedAt).getTime()
+  )
+  const freshClusters = sortedClusters.filter(cluster => hoursSince(cluster.lastPublishedAt) <= FRESH_CLUSTER_WINDOW_HOURS)
+  const recentClusters = sortedClusters.filter(cluster => {
+    const clusterAge = hoursSince(cluster.lastPublishedAt)
+    return clusterAge > FRESH_CLUSTER_WINDOW_HOURS && clusterAge <= RECENT_CLUSTER_WINDOW_HOURS
+  })
+  const fallbackClusters = sortedClusters.filter(cluster => {
+    const clusterAge = hoursSince(cluster.lastPublishedAt)
+    return clusterAge > RECENT_CLUSTER_WINDOW_HOURS && clusterAge <= MAX_CLUSTER_WINDOW_HOURS
+  })
+  const preferredPool =
+    freshClusters.length >= Math.min(limit, 10)
+      ? freshClusters
+      : freshClusters.length + recentClusters.length >= Math.min(limit, 10)
+        ? [...freshClusters, ...recentClusters]
+        : [...freshClusters, ...recentClusters, ...fallbackClusters]
+
+  return preferredPool.slice(0, Math.max(limit * 2, 16))
 }
 
 export async function collectLatestClusters(options: CollectClustersOptions = {}) {
@@ -27,9 +60,9 @@ export async function collectLatestClusters(options: CollectClustersOptions = {}
       message: `${result.source.name}: ${result.error}`,
     }))
 
-  const baseClusters = clusterNews(allItems)
+  const clusteredItems = clusterNews(allItems)
     .filter(cluster => cluster.sourcesCount >= minSources)
-    .slice(0, Math.max(limit * 2, 16))
+  const baseClusters = selectClustersByRecency(clusteredItems, limit)
   const clusters = (await rankClustersByRelevance(baseClusters)).slice(0, limit)
 
   return {

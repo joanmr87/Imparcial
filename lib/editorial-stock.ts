@@ -5,6 +5,9 @@ import { clusterNews, fetchAllFeeds } from "./rss-fetcher"
 import type { ImpartialArticle, NewsCluster } from "./types"
 
 const GENERATED_STOCK_LIMIT = 18
+const FRESH_CLUSTER_WINDOW_HOURS = 36
+const RECENT_CLUSTER_WINDOW_HOURS = 72
+const MAX_CLUSTER_WINDOW_HOURS = 120
 const STOCK_CATEGORY_TARGETS = {
   Politica: 6,
   Economia: 4,
@@ -21,6 +24,32 @@ function inferClusterCategory(cluster: NewsCluster): string {
   }
 
   return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || "Sociedad"
+}
+
+function hoursSince(timestamp: string): number {
+  const date = new Date(timestamp).getTime()
+  if (Number.isNaN(date)) return MAX_CLUSTER_WINDOW_HOURS
+  return Math.max(0, (Date.now() - date) / (1000 * 60 * 60))
+}
+
+function selectRecencyPool(clusters: NewsCluster[]): NewsCluster[] {
+  const freshClusters = clusters.filter(cluster => hoursSince(cluster.lastPublishedAt) <= FRESH_CLUSTER_WINDOW_HOURS)
+  if (freshClusters.length >= 10) return freshClusters
+
+  const recentClusters = clusters.filter(cluster => {
+    const clusterAge = hoursSince(cluster.lastPublishedAt)
+    return clusterAge > FRESH_CLUSTER_WINDOW_HOURS && clusterAge <= RECENT_CLUSTER_WINDOW_HOURS
+  })
+  if (freshClusters.length + recentClusters.length >= 10) {
+    return [...freshClusters, ...recentClusters]
+  }
+
+  const fallbackClusters = clusters.filter(cluster => {
+    const clusterAge = hoursSince(cluster.lastPublishedAt)
+    return clusterAge > RECENT_CLUSTER_WINDOW_HOURS && clusterAge <= MAX_CLUSTER_WINDOW_HOURS
+  })
+
+  return [...freshClusters, ...recentClusters, ...fallbackClusters]
 }
 
 export function selectClustersForEditorialStock(clusters: NewsCluster[], limit: number): NewsCluster[] {
@@ -57,7 +86,9 @@ async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
   try {
     const feedResults = await fetchAllFeeds()
     const allItems = feedResults.flatMap(result => result.items)
-    const allClusters = clusterNews(allItems).filter(cluster => cluster.sourcesCount >= 2)
+    const allClusters = selectRecencyPool(
+      clusterNews(allItems).filter(cluster => cluster.sourcesCount >= 2)
+    )
     const selectedClusters = selectClustersForEditorialStock(allClusters, GENERATED_STOCK_LIMIT)
     const articles = await Promise.all(
       selectedClusters.map(async cluster => {

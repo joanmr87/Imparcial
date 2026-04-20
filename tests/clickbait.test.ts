@@ -111,6 +111,28 @@ describe("clickbait fallback answers", () => {
     expect(deriveClickbaitFallbackAnswer(item)).toBe("Nicolás González")
   })
 
+  it("rejects abstract answers when the title asks for a place", () => {
+    const item = makeItem({
+      source: "La Nacion",
+      sourceId: "lanacion",
+      title: "Dónde queda el Santuario de San Expedito en Buenos Aires para rezar, pedir y agradecer",
+      description: "La devoción encuentra sentido en la respuesta ante dificultades y la firmeza en la fe.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
+  it("rejects numeric inflation answers when the title is asking why", () => {
+    const item = makeItem({
+      source: "Perfil",
+      sourceId: "perfil",
+      title: "¿Por qué no baja la inflación en Argentina?",
+      description: "La inflación núcleo marcó 2% y el informe describe tensiones en precios regulados y servicios.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
   it("extracts article context from HTML paragraphs and list items", () => {
     const html = `
       <html>

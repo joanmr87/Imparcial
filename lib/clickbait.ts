@@ -113,7 +113,7 @@ function normalizeText(text: string): string {
 }
 
 function looksLikePotentialClickbait(item: RSSItem): boolean {
-  if (!item.imageUrl || !item.description.trim()) return false
+  if (!item.description.trim()) return false
   if (REJECT_PATTERNS.some(pattern => pattern.test(item.title))) return false
   if (LOW_VALUE_PATTERNS.some(pattern => pattern.test(item.title))) return false
 
@@ -296,31 +296,88 @@ function addsNewInformation(title: string, answer: string): boolean {
   return meaningfulTokens.some(token => !titleTokens.has(token))
 }
 
+function looksLikeDateAnswer(answer: string): boolean {
+  const normalizedAnswer = normalizeText(answer)
+  return /\b\d{1,2}\s+de\s+[a-z]+\s+de\s+\d{4}\b/.test(normalizedAnswer)
+    || /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.test(normalizedAnswer)
+    || /\b(hoy|manana|pasado manana)\b/.test(normalizedAnswer)
+    || /\b\d{1,2}:\d{2}\b/.test(normalizedAnswer)
+}
+
+function looksLikeLocationAnswer(answer: string): boolean {
+  const normalizedAnswer = normalizeText(answer)
+  const hasLocationPrefix = /^(en|a|al|del?)\s+/.test(normalizedAnswer)
+  const hasPlaceCue =
+    /\b(santuario|iglesia|parroquia|capilla|catedral|basilica|plaza|estadio|cancha|barrio|avenida|calle|ciudad|provincia|terminal|bombonera|monumental|casa rosada|congreso|obelisco|microcentro)\b/.test(normalizedAnswer)
+    || /\ben\s+[A-ZÁÉÍÓÚÑ]/.test(answer)
+  const hasAbstractCue = /\b(respuesta|dificultad|firmeza|fe|sentido|forma|manera|motivo|razon|esperanza)\b/.test(normalizedAnswer)
+
+  return hasLocationPrefix && hasPlaceCue && !hasAbstractCue
+}
+
+function looksLikeAmountAnswer(answer: string): boolean {
+  const normalizedAnswer = normalizeText(answer)
+  return /^\$/.test(answer.trim())
+    || /\b\d+(?:[.,]\d+)?\s?%/.test(normalizedAnswer)
+    || /\b\d+(?:[.,]\d+)?\b/.test(normalizedAnswer)
+}
+
+function looksLikeIdentityAnswer(answer: string): boolean {
+  return /\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2}\b/.test(answer.trim())
+}
+
+function looksLikeCausalAnswer(answer: string): boolean {
+  const normalizedAnswer = normalizeText(answer)
+  if (normalizedAnswer.length > 90) return false
+
+  return /^(porque|por\s+(la|el|los|las|un|una)|debido a|ya que|ante\s+|tras\s+)/.test(normalizedAnswer)
+}
+
 function answerMatchesTitleNeed(title: string, answer: string): boolean {
   const normalizedTitle = normalizeText(title)
   const normalizedAnswer = normalizeText(answer)
+  const looksLikeDate = looksLikeDateAnswer(answer)
+  const looksLikePlace = looksLikeLocationAnswer(answer)
+  const looksLikePercent = /\b\d{1,2}(?:[.,]\d+)?\s?%/.test(normalizedAnswer)
+  const looksLikeTemperature = /\b(hasta\s+)?\d{2}\s?°/.test(normalizedAnswer)
+  const looksLikeList = normalizedAnswer.includes(",")
+
+  if (/^[^a-z0-9]*por que\b/.test(normalizedTitle)) {
+    return looksLikeCausalAnswer(answer) && addsNewInformation(title, answer)
+  }
+
+  if (/\bdonde\b/.test(normalizedTitle)) {
+    return looksLikePlace
+  }
+
+  if (/\b(cuando|fecha|que dia|hasta cuando)\b/.test(normalizedTitle)) {
+    return looksLikeDate
+  }
+
+  if (/^\s*quien\b|^\s*quienes\b|\breemplazante\b|\bse lesiono\b|\bpodria perderse\b|\bse ira del pais\b/.test(normalizedTitle)) {
+    return looksLikeIdentityAnswer(answer)
+  }
+
+  if (/\ba cuanto\b|\bcuanto cuesta\b|\ba cuanto asciende\b/.test(normalizedTitle)) {
+    return looksLikeAmountAnswer(answer) && addsNewInformation(title, answer)
+  }
 
   if (/\b\d+\s+(hipermercados|supermercados|tipos|autos|marcas)\b/.test(normalizedAnswer) && !addsNewInformation(title, answer)) {
     return false
   }
 
-  const looksLikeDate = /\b\d{1,2}\s+de\s+[a-z]+\s+de\s+\d{4}\b/.test(normalizedAnswer)
   if (looksLikeDate && !/\b(cuando|fecha|que dia|hasta cuando)\b/.test(normalizedTitle)) return false
 
-  const looksLikePlace = /^en\s+/.test(normalizedAnswer)
   if (looksLikePlace && !/\bdonde\b/.test(normalizedTitle)) return false
 
-  const looksLikePercent = /\b\d{1,2}(?:[.,]\d+)?\s?%/.test(normalizedAnswer)
   if (looksLikePercent && !/\b(pobreza|inflacion|desempleo|a cuanto asciende|hasta que punto)\b/.test(normalizedTitle)) {
     return false
   }
 
-  const looksLikeTemperature = /\b(hasta\s+)?\d{2}\s?°/.test(normalizedAnswer)
   if (looksLikeTemperature && !/\b(calor|temperatura|clima|meteorologic|ola de calor)\b/.test(normalizedTitle)) {
     return false
   }
 
-  const looksLikeList = normalizedAnswer.includes(",")
   if (looksLikeList && !/\b(cuales|marcas|autos|convocad|citacion|lista)\b/.test(normalizedTitle)) return false
 
   if (!addsNewInformation(title, answer) && !looksLikePercent && !looksLikeTemperature) return false
@@ -331,6 +388,7 @@ function answerMatchesTitleNeed(title: string, answer: string): boolean {
 function isValidClickbaitAnswer(answer: string, title?: string): boolean {
   const clean = answer.trim()
   if (clean.length < 3) return false
+  if (clean.length > 120) return false
   if (/^\$\s?\d{1,2}$/.test(clean)) return false
   if (/^(no se sabe|sin datos|en vivo)$/i.test(clean)) return false
   if (/^(el gobierno|en estados unidos|en mexico|en uruguay)$/i.test(clean)) return false
@@ -383,6 +441,10 @@ function deriveClickbaitFallbackAnswerFromContext(item: RSSItem, extraContext: s
   const title = normalizeText(item.title)
   const context = `${item.description.trim()} ${extraContext.trim()}`.trim()
   if (!context) return null
+
+  if (/^[^a-z0-9]*por que\b/.test(title)) {
+    return null
+  }
 
   if (/\ba cuanto\b|\bcuanto cuesta\b/.test(title)) {
     if (hasPluralPriceCue(title)) return null
@@ -475,13 +537,13 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
         if (scoreDifference !== 0) return scoreDifference
         return new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime()
       })
-      .slice(0, 40)
+      .slice(0, 80)
   )
 
   if (candidatePool.length === 0) return []
 
   const enrichedCandidates = await Promise.all(
-    candidatePool.slice(0, 14).map(item => fetchArticleContext(item))
+    candidatePool.slice(0, 24).map(item => fetchArticleContext(item))
   )
 
   const prompt = enrichedCandidates
@@ -557,10 +619,10 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
 
       const rankedByAi = selectedItems
         .sort((left, right) => right.totalScore - left.totalScore)
-        .slice(0, 6)
+        .slice(0, CLICKBAIT_TARGET_ITEMS)
         .map(({ totalScore, ...item }) => ({ ...item, rankingScore: totalScore }))
 
-      if (rankedByAi.length >= 3) return rankedByAi
+      if (rankedByAi.length >= CLICKBAIT_TARGET_ITEMS) return rankedByAi
 
       if (rankedByAi.length > 0) {
         const fallbackItems = buildFallbackItems(enrichedCandidates)
@@ -569,10 +631,10 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
         for (const fallbackItem of fallbackItems) {
           if (merged.some(item => item.id === fallbackItem.id)) continue
           merged.push(fallbackItem)
-          if (merged.length >= 3) break
+          if (merged.length >= CLICKBAIT_TARGET_ITEMS) break
         }
 
-        if (merged.length > 0) return merged.slice(0, 6)
+        if (merged.length > 0) return merged.slice(0, CLICKBAIT_TARGET_ITEMS)
       }
     } catch {
       // Fallback below.
@@ -603,7 +665,7 @@ function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterIt
     })
     .filter((item): item is ClickbaitBusterItem & { heuristicScore: number } => item !== null)
     .sort((left, right) => right.heuristicScore - left.heuristicScore)
-    .slice(0, 6)
+    .slice(0, CLICKBAIT_TARGET_ITEMS)
     .map(({ heuristicScore: _heuristicScore, ...item }) => item)
 
   return fallbackItems
@@ -695,8 +757,9 @@ export async function getPublishedClickbaitEdition(): Promise<ClickbaitSnapshotP
     snapshotDate,
     CLICKBAIT_SNAPSHOT_SLOT
   )
+  const todayItems = todaySnapshot?.payload.items || []
 
-  if (todaySnapshot) {
+  if (todayItems.length >= CLICKBAIT_TARGET_ITEMS && todaySnapshot) {
     return todaySnapshot.payload
   }
 
@@ -704,7 +767,34 @@ export async function getPublishedClickbaitEdition(): Promise<ClickbaitSnapshotP
     CLICKBAIT_SNAPSHOT_TYPE,
     CLICKBAIT_SNAPSHOT_SLOT
   )
-  if (latestSnapshot) {
+  const previousItems = latestSnapshot?.snapshotDate === snapshotDate
+    ? []
+    : (latestSnapshot?.payload.items || [])
+
+  if (todaySnapshot) {
+    const emergencyItems = await getEmergencyClickbaitBusters()
+    const repairedItems = mergeClickbaitItems(
+      [...todayItems, ...emergencyItems],
+      previousItems
+    )
+    const repairedPayload: ClickbaitSnapshotPayload = {
+      ...todaySnapshot.payload,
+      freshCount: Math.max(todaySnapshot.payload.freshCount, emergencyItems.length),
+      reusedCount: Math.max(0, repairedItems.length - emergencyItems.length),
+      items: repairedItems,
+    }
+
+    const storedSnapshot = await safeUpsertSiteSnapshot({
+      snapshotType: CLICKBAIT_SNAPSHOT_TYPE,
+      snapshotDate,
+      snapshotSlot: CLICKBAIT_SNAPSHOT_SLOT,
+      payload: repairedPayload,
+    })
+
+    return storedSnapshot?.payload || repairedPayload
+  }
+
+  if (latestSnapshot?.payload.items.length) {
     return latestSnapshot.payload
   }
 
