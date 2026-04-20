@@ -133,6 +133,28 @@ describe("clickbait fallback answers", () => {
     expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
   })
 
+  it("rejects mixed explainers that need more than one concrete answer", () => {
+    const item = makeItem({
+      source: "C5N",
+      sourceId: "c5n",
+      title: "Cuáles son las declaraciones juradas que revisa ARCA y por qué podés recibir una multa",
+      description: "Las sanciones pueden ir desde AR$220.000 hasta AR$35.000.000, según la gravedad del incumplimiento.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
+  it("rejects sports controversy titles that do not hide a direct factual answer", () => {
+    const item = makeItem({
+      source: "Minuto Uno",
+      sourceId: "minutouno",
+      title: "Escándalo en el final del Superclásico: ¿era penal para River en la última jugada?",
+      description: "Lautaro Blanco y Martínez Quarta quedaron en el centro de la discusión arbitral tras el cierre del partido.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
   it("extracts article context from HTML paragraphs and list items", () => {
     const html = `
       <html>

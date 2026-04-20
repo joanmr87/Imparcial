@@ -103,6 +103,10 @@ const REJECT_PATTERNS = [
   /\bopini[oó]n\b/i,
   /\ban[aá]lisis\b/i,
   /\bcolumna\b/i,
+  /\bpol[eé]mic(?:a|as|o|os)\b/i,
+  /\b(var|offside|orsai|expulsi[oó]n)\b/i,
+  /\b(?:era|es|fue)\s+penal\b/i,
+  /\by por qu[eé]\b/i,
 ]
 
 function normalizeText(text: string): string {
@@ -322,6 +326,17 @@ function looksLikeAmountAnswer(answer: string): boolean {
     || /\b\d+(?:[.,]\d+)?\b/.test(normalizedAnswer)
 }
 
+function looksLikePureAmountList(answer: string): boolean {
+  const parts = answer
+    .split(",")
+    .map(part => part.trim())
+    .filter(Boolean)
+
+  if (parts.length < 2) return false
+
+  return parts.every(part => /^AR?\$?\s?[\d\.\,]+(?:\s*(mil|millones?))?$/i.test(part))
+}
+
 function looksLikeIdentityAnswer(answer: string): boolean {
   return /\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2}\b/.test(answer.trim())
 }
@@ -331,6 +346,18 @@ function looksLikeCausalAnswer(answer: string): boolean {
   if (normalizedAnswer.length > 90) return false
 
   return /^(porque|por\s+(la|el|los|las|un|una)|debido a|ya que|ante\s+|tras\s+)/.test(normalizedAnswer)
+}
+
+function expectsNamedListAnswer(title: string): boolean {
+  return /\b(cuales|cu[aá]les)\b/.test(title)
+    && /\b(declaraciones juradas|documentos|requisitos|papeles|formularios|medios|pasos|claves|nombres|convocados|marcas|autos)\b/.test(title)
+}
+
+function isBinaryControversyTitle(title: string): boolean {
+  return /\b(var|offside|orsai|expulsi[oó]n|penal)\b/.test(title)
+    || /\b(?:era|es|fue)\b/.test(title)
+    || /\bultima jugada\b/.test(title)
+    || /\bla falta\b/.test(title)
 }
 
 function answerMatchesTitleNeed(title: string, answer: string): boolean {
@@ -344,6 +371,10 @@ function answerMatchesTitleNeed(title: string, answer: string): boolean {
 
   if (/^[^a-z0-9]*por que\b/.test(normalizedTitle)) {
     return looksLikeCausalAnswer(answer) && addsNewInformation(title, answer)
+  }
+
+  if (isBinaryControversyTitle(normalizedTitle)) {
+    return false
   }
 
   if (/\bdonde\b/.test(normalizedTitle)) {
@@ -360,6 +391,10 @@ function answerMatchesTitleNeed(title: string, answer: string): boolean {
 
   if (/\ba cuanto\b|\bcuanto cuesta\b|\ba cuanto asciende\b/.test(normalizedTitle)) {
     return looksLikeAmountAnswer(answer) && addsNewInformation(title, answer)
+  }
+
+  if (expectsNamedListAnswer(normalizedTitle) && looksLikePureAmountList(answer)) {
+    return false
   }
 
   if (/\b\d+\s+(hipermercados|supermercados|tipos|autos|marcas)\b/.test(normalizedAnswer) && !addsNewInformation(title, answer)) {
@@ -392,6 +427,7 @@ function isValidClickbaitAnswer(answer: string, title?: string): boolean {
   if (/^\$\s?\d{1,2}$/.test(clean)) return false
   if (/^(no se sabe|sin datos|en vivo)$/i.test(clean)) return false
   if (/^(el gobierno|en estados unidos|en mexico|en uruguay)$/i.test(clean)) return false
+  if (looksLikePureAmountList(clean) && (!title || !/\b(a cuanto|multa|montos?|valores?)\b/i.test(title))) return false
   if (title && !answerMatchesTitleNeed(title, clean)) return false
   return true
 }
@@ -443,6 +479,10 @@ function deriveClickbaitFallbackAnswerFromContext(item: RSSItem, extraContext: s
   if (!context) return null
 
   if (/^[^a-z0-9]*por que\b/.test(title)) {
+    return null
+  }
+
+  if (isBinaryControversyTitle(title)) {
     return null
   }
 
@@ -569,6 +609,8 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
           "Esto aplica a nombres, convocados, listas, fechas, horarios, lugares, cifras, temperaturas, porcentajes o cualquier dato que el lector tuvo que abrir para encontrar.",
           "No te interesa si el titulo es largo: solo entra si oculta una respuesta concreta.",
           "Exclui analisis, opinion, vivos, cronicas amplias, rankings sin respuesta clara o temas donde la nota no resuelve de verdad la pregunta.",
+          "Tambien exclui explicadores mezclados que requieren mas de una respuesta, por ejemplo 'cuales son X y por que pasa Y', porque no entran bien en una card.",
+          "Exclui controversias de arbitraje, VAR, faltas, polemicas o preguntas de opinion tipo 'era penal' o 'fue correcto', porque no esconden un dato concreto sino una discusion.",
           "Si la respuesta es una lista, devolvela como lista compacta separada por comas.",
           "Si es un pronostico, devolvelo tipo 'hasta 39°' o 'llueve el jueves'.",
           "Si es una cifra estimada, devolvela tipo 'aprox. 4%'.",

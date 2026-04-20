@@ -58,26 +58,31 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         )}
 
         <section className="mb-8 overflow-hidden rounded-[1.75rem] border border-border bg-card/80 shadow-[0_18px_50px_rgba(28,28,28,0.05)]">
-          <div className="grid gap-4 px-5 py-5 md:grid-cols-[1.15fr_0.85fr] md:px-6">
+          <div className="grid gap-6 px-5 py-6 md:grid-cols-[1.15fr_0.85fr] md:px-6">
             <div>
               <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-                Edicion curada por sistema editorial
+                Una idea simple para un problema real
               </p>
-              <h2 className="mt-3 font-serif text-2xl font-semibold text-foreground md:text-3xl">
-                Varias coberturas, una lectura más clara
+              <h2 className="mt-3 max-w-3xl font-serif text-2xl font-semibold text-foreground md:text-4xl">
+                Si cada medio empuja para su lado, leer varios a la vez puede acercarte más a lo que pasó
               </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
-                La portada publica sintesis construidas a partir de coincidencias reales entre distintos medios argentinos. La edición general se renueva dos veces por día y prioriza conservar los temas más sólidos cuando todavía no hay reemplazo suficiente.
+              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-muted-foreground md:text-base">
+                Imparcial es un diario hecho con IA que recopila coberturas de distintos medios argentinos,
+                detecta cuándo están hablando del mismo hecho y arma una síntesis más limpia para el lector.
+              </p>
+              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-muted-foreground md:text-base">
+                No promete una verdad mágica ni un punto de vista sin sesgo. Hace algo más útil: promedia miradas,
+                expone coincidencias, marca diferencias y te devuelve una versión más equilibrada que la de leer un solo diario.
               </p>
             </div>
-            <div className="rounded-[1.5rem] border border-border bg-secondary/45 p-4">
+            <div className="rounded-[1.5rem] border border-border bg-secondary/45 p-5">
               <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-                Ritmo del diario
+                Por qué importa
               </p>
-              <div className="mt-4 space-y-3 text-sm text-foreground/80">
-                <p>Dos ediciones generales por día, una a la mañana y otra a la tarde.</p>
-                <p>Clickbait procesado una sola vez por jornada, con fallback de lo mejor del día anterior.</p>
-                <p>Portada armada con notas persistidas, no con regeneración permanente al abrir el sitio.</p>
+              <div className="mt-4 space-y-4 text-sm leading-relaxed text-foreground/80">
+                <p>Resuelve una fricción cotidiana: entender una noticia importante sin abrir cinco medios para reconstruirla.</p>
+                <p>Reduce el peso de una sola línea editorial y deja más visible el promedio de todos los sesgos, no solo uno.</p>
+                <p>Convierte sobreinformación en una lectura rápida, trazable y bastante más clara.</p>
               </div>
             </div>
           </div>
@@ -134,24 +139,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Sobre Diario Imparcial
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Diario Imparcial es un diario generado íntegramente con IA a partir de múltiples coberturas sobre un mismo hecho. Cada síntesis ordena qué está confirmado, qué queda atribuido y en qué difieren los medios.
+              Imparcial toma una tarea que hoy hace el lector más obsesivo y la vuelve producto: leer varios medios,
+              separar ruido de información y quedarse con una versión más útil de cada tema.
             </p>
-            <div className="mt-6 flex items-center justify-center gap-8 text-xs text-muted-foreground">
-              <div>
-                <span className="block font-serif text-2xl font-semibold text-foreground">{articles.length}</span>
-                <span>Temas visibles</span>
-              </div>
-              <div className="h-8 w-px bg-border" />
-              <div>
-                <span className="block font-serif text-2xl font-semibold text-foreground">{sections.length}</span>
-                <span>Secciones activas</span>
-              </div>
-              <div className="h-8 w-px bg-border" />
-              <div>
-                <span className="block font-serif text-2xl font-semibold text-foreground">2x</span>
-                <span>Ediciones diarias</span>
-              </div>
-            </div>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              La apuesta es que una IA bien usada no reemplace al periodismo: puede leerlo en volumen, contrastarlo y presentarlo
+              de una forma que ayude a pensar mejor.
+            </p>
           </div>
         </section>
 
