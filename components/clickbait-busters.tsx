@@ -1,3 +1,4 @@
+import Image from "next/image"
 import type { ClickbaitBusterItem } from "@/lib/clickbait"
 
 interface ClickbaitBustersProps {
@@ -52,12 +53,13 @@ export function ClickbaitBusters({ items, generatedAt }: ClickbaitBustersProps) 
           >
             {item.imageUrl && (
               <div className="aspect-[16/9] overflow-hidden bg-stone-200">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={item.imageUrl}
                   alt={item.title}
+                  width={1200}
+                  height={675}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
                   className="h-full w-full object-cover"
-                  loading="lazy"
                 />
               </div>
             )}

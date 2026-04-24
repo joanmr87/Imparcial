@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 import type { ImpartialArticle } from "@/lib/types"
 
@@ -29,17 +30,27 @@ function SourceTagList({ article }: { article: ImpartialArticle }) {
   )
 }
 
-function ArticleCardImage({ article, tall = false }: { article: ImpartialArticle; tall?: boolean }) {
+function ArticleCardImage({
+  article,
+  tall = false,
+  priority = false,
+}: {
+  article: ImpartialArticle
+  tall?: boolean
+  priority?: boolean
+}) {
   if (!article.heroImageUrl) return null
 
   return (
     <div className={`overflow-hidden bg-muted ${tall ? "aspect-[16/10]" : "aspect-[16/9]"}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={article.heroImageUrl}
         alt={article.title}
+        width={1600}
+        height={tall ? 1000 : 900}
+        sizes={tall ? "(max-width: 1024px) 100vw, 66vw" : "(max-width: 768px) 100vw, 50vw"}
         className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
-        loading="lazy"
+        priority={priority}
       />
     </div>
   )
@@ -50,9 +61,9 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
 
   if (variant === "featured") {
     return (
-      <Link href={`/nota/${article.slug}`} className="group block">
+      <Link href={`/nota/${article.slug}`} prefetch={false} className="group block">
         <article className="overflow-hidden rounded-[1.75rem] border border-border/80 bg-card/90 shadow-[0_18px_50px_rgba(28,28,28,0.06)]">
-          <ArticleCardImage article={article} tall />
+          <ArticleCardImage article={article} tall priority />
           <div className="px-5 py-5 md:px-6">
             <p className="text-xs tracking-widest text-muted-foreground uppercase">
               {article.category}
@@ -75,7 +86,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
 
   if (variant === "large") {
     return (
-      <Link href={`/nota/${article.slug}`} className="group block">
+      <Link href={`/nota/${article.slug}`} prefetch={false} className="group block">
         <article className="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card/80 shadow-[0_14px_36px_rgba(28,28,28,0.05)]">
           <ArticleCardImage article={article} />
           <div className="px-4 py-4 md:px-5">
@@ -100,7 +111,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
 
   if (variant === "small") {
     return (
-      <Link href={`/nota/${article.slug}`} className="group block">
+      <Link href={`/nota/${article.slug}`} prefetch={false} className="group block">
         <article className="rounded-[1.25rem] border border-border/70 bg-card/70 px-4 py-4 transition-shadow hover:shadow-[0_10px_24px_rgba(28,28,28,0.05)]">
           <p className="text-xs tracking-widest text-muted-foreground uppercase">
             {article.category}
@@ -122,7 +133,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
 
   if (variant === "minimal") {
     return (
-      <Link href={`/nota/${article.slug}`} className="group block">
+      <Link href={`/nota/${article.slug}`} prefetch={false} className="group block">
         <article className="flex items-start gap-3 rounded-[1.15rem] border border-border/70 bg-card/65 px-3.5 py-3.5">
           <span className="font-serif text-2xl font-light text-muted-foreground/50">
             {article.category.charAt(0)}
@@ -142,7 +153,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
   }
 
   return (
-    <Link href={`/nota/${article.slug}`} className="group block">
+    <Link href={`/nota/${article.slug}`} prefetch={false} className="group block">
       <article className="rounded-[1.35rem] border border-border/70 bg-card/75 px-4 py-4 transition-shadow hover:shadow-[0_12px_28px_rgba(28,28,28,0.05)]">
         <p className="text-xs tracking-widest text-muted-foreground uppercase">
           {article.category}

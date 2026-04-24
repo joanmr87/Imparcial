@@ -5,10 +5,10 @@ import { useState } from "react"
 import { Menu, X } from "lucide-react"
 
 const navItems = [
-  { label: "Politica", href: "/?seccion=politica" },
-  { label: "Economia", href: "/?seccion=economia" },
-  { label: "Sociedad", href: "/?seccion=sociedad" },
-  { label: "Deportes", href: "/?seccion=deportes" },
+  { label: "Politica", href: "/seccion/politica" },
+  { label: "Economia", href: "/seccion/economia" },
+  { label: "Sociedad", href: "/seccion/sociedad" },
+  { label: "Deportes", href: "/seccion/deportes" },
   { label: "Metodologia", href: "/metodologia" },
 ]
 
@@ -31,7 +31,7 @@ export function Header({ dateString }: HeaderProps) {
 
         {/* Logo */}
         <div className="py-8 text-center">
-          <Link href="/" className="inline-block">
+          <Link href="/" prefetch={false} className="inline-block">
             <h1 className="font-serif text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
               Diario Imparcial
             </h1>
@@ -48,6 +48,7 @@ export function Header({ dateString }: HeaderProps) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  prefetch={false}
                   className="text-sm tracking-wide text-foreground transition-colors hover:text-muted-foreground"
                 >
                   {item.label}
@@ -76,6 +77,7 @@ export function Header({ dateString }: HeaderProps) {
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    prefetch={false}
                     className="text-sm tracking-wide text-foreground transition-colors hover:text-muted-foreground"
                     onClick={() => setMobileMenuOpen(false)}
                   >

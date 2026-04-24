@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache"
 import { dedupeSimilarArticles, pickDistinctArticles, prioritizeArticleVariety } from "./article-dedup"
 import { listPublishedArticles } from "./articles"
 import { HOME_SECTION_ORDER, categoryLabelFromSlug, inferCategoryFromArticle, normalizeSectionSlug } from "./news-categories"
@@ -16,6 +17,17 @@ export interface HomepageEdition {
   warning?: string
   sections: HomepageSection[]
   activeSectionLabel?: string
+}
+
+interface HomepageBaseEdition {
+  rankedArticles: ImpartialArticle[]
+  source: "database" | "generated" | "empty"
+  warning?: string
+  sections: HomepageSection[]
+}
+
+function isMissingIncrementalCacheError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("incrementalCache missing")
 }
 
 function interleaveSectionArticles(sections: HomepageSection[], limit: number): ImpartialArticle[] {
@@ -45,41 +57,57 @@ function interleaveSectionArticles(sections: HomepageSection[], limit: number): 
 export async function getHomepageEdition(activeSection?: string | null): Promise<HomepageEdition> {
   const sectionFilter = normalizeSectionSlug(activeSection)
   const activeSectionLabel = sectionFilter ? categoryLabelFromSlug(sectionFilter) : undefined
-  const published = await listPublishedArticles()
-  const rankedArticles = prioritizeArticleVariety(dedupeSimilarArticles(published.articles), 24)
+  const { rankedArticles, source, warning, sections: allSections } = await getHomepageBaseEdition()
+  let sections = sectionFilter
+    ? allSections.filter(section => section.slug === sectionFilter)
+    : allSections
 
-  let articles = rankedArticles
-  if (sectionFilter) {
-    if (activeSectionLabel) {
-      articles = pickDistinctArticles(
-        rankedArticles.filter(article => inferCategoryFromArticle(article) === activeSectionLabel),
-        12,
-        0.36
-      )
-    }
+  if (sectionFilter && sections.length === 0 && activeSectionLabel) {
+    sections = [
+      {
+        slug: sectionFilter,
+        label: activeSectionLabel,
+        lead: undefined,
+        articles: [],
+      },
+    ]
   }
 
+  let articles = rankedArticles
+  if (sectionFilter && activeSectionLabel) {
+    articles = pickDistinctArticles(
+      rankedArticles.filter(article => inferCategoryFromArticle(article) === activeSectionLabel),
+      12,
+      0.36
+    )
+  }
+
+  if (!sectionFilter) {
+    articles = interleaveSectionArticles(sections, 18)
+  }
+
+  return {
+    articles: sectionFilter ? articles : (articles.length > 0 ? articles : rankedArticles),
+    source,
+    warning,
+    sections,
+    activeSectionLabel,
+  }
+}
+
+async function buildHomepageBaseEdition(): Promise<HomepageBaseEdition> {
+  const published = await listPublishedArticles()
+  const rankedArticles = prioritizeArticleVariety(dedupeSimilarArticles(published.articles), 24)
   const sections: HomepageSection[] = []
 
   for (const section of HOME_SECTION_ORDER) {
-    if (sectionFilter && section.slug !== sectionFilter) continue
-
     const categoryArticles = pickDistinctArticles(
       rankedArticles.filter(article => inferCategoryFromArticle(article) === section.label),
       5,
       0.36
     )
-    if (categoryArticles.length === 0) {
-      if (sectionFilter === section.slug) {
-        sections.push({
-          slug: section.slug,
-          label: section.label,
-          lead: undefined,
-          articles: [],
-        })
-      }
-      continue
-    }
+
+    if (categoryArticles.length === 0) continue
 
     sections.push({
       slug: section.slug,
@@ -89,15 +117,28 @@ export async function getHomepageEdition(activeSection?: string | null): Promise
     })
   }
 
-  if (!sectionFilter) {
-    articles = interleaveSectionArticles(sections, 18)
-  }
-
   return {
-    articles: sectionFilter ? articles : (articles.length > 0 ? articles : rankedArticles),
+    rankedArticles,
     source: published.source,
     warning: published.warning,
     sections,
-    activeSectionLabel,
+  }
+}
+
+const getCachedHomepageBaseEdition = unstable_cache(
+  buildHomepageBaseEdition,
+  ["homepage-edition-v1"],
+  { revalidate: 900 }
+)
+
+async function getHomepageBaseEdition(): Promise<HomepageBaseEdition> {
+  try {
+    return await getCachedHomepageBaseEdition()
+  } catch (error) {
+    if (isMissingIncrementalCacheError(error)) {
+      return buildHomepageBaseEdition()
+    }
+
+    throw error
   }
 }

@@ -1,3 +1,4 @@
+import Image from "next/image"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Header } from "@/components/header"
@@ -84,10 +85,13 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
             {article.heroImageUrl && (
               <div className="mb-10 overflow-hidden rounded-[1.75rem] border border-border/80 bg-muted shadow-[0_18px_44px_rgba(28,28,28,0.06)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={article.heroImageUrl}
                   alt={article.title}
+                  width={1600}
+                  height={900}
+                  sizes="(max-width: 1024px) 100vw, 66vw"
+                  priority
                   className="aspect-[16/9] h-full w-full object-cover"
                 />
               </div>

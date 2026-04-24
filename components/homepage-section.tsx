@@ -23,7 +23,8 @@ export function HomepageSectionBlock({ section }: HomepageSectionProps) {
           </h2>
         </div>
         <Link
-          href={`/?seccion=${section.slug}`}
+          href={`/seccion/${section.slug}`}
+          prefetch={false}
           className="text-xs tracking-wide text-muted-foreground transition-colors hover:text-foreground"
         >
           Ver solo {section.label.toLowerCase()}

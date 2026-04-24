@@ -47,6 +47,10 @@ const CLICKBAIT_SNAPSHOT_TYPE = "clickbait"
 const CLICKBAIT_SNAPSHOT_SLOT = "daily"
 const CLICKBAIT_TARGET_ITEMS = 6
 
+function isMissingIncrementalCacheError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("incrementalCache missing")
+}
+
 const HINT_PATTERNS = [
   /\?/,
   /^\s*qu[eé]n\b/i,
@@ -792,7 +796,7 @@ export async function refreshDailyClickbaitEdition(options: {
   return storedSnapshot?.payload || payload
 }
 
-export async function getPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload> {
+async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload> {
   const snapshotDate = getArgentinaDateKey()
   const todaySnapshot = await safeGetSiteSnapshot<ClickbaitSnapshotPayload>(
     CLICKBAIT_SNAPSHOT_TYPE,
@@ -847,6 +851,24 @@ export async function getPublishedClickbaitEdition(): Promise<ClickbaitSnapshotP
     freshCount: emergencyItems.length,
     reusedCount: 0,
     items: emergencyItems.slice(0, CLICKBAIT_TARGET_ITEMS),
+  }
+}
+
+const getCachedPublishedClickbaitEdition = unstable_cache(
+  readPublishedClickbaitEdition,
+  ["published-clickbait-edition-v1"],
+  { revalidate: 900 }
+)
+
+export async function getPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload> {
+  try {
+    return await getCachedPublishedClickbaitEdition()
+  } catch (error) {
+    if (isMissingIncrementalCacheError(error)) {
+      return readPublishedClickbaitEdition()
+    }
+
+    throw error
   }
 }
 

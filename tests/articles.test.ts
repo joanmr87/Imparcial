@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ImpartialArticle } from "../lib/types"
 
 const getDatabaseArticles = vi.fn()
@@ -61,9 +61,15 @@ function makeArticle(overrides: Partial<ImpartialArticle>): ImpartialArticle {
 
 describe("published articles selection", () => {
   beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-04-19T22:30:00.000Z"))
     getDatabaseArticles.mockReset()
     getDatabaseArticleBySlug.mockReset()
     getGeneratedEditorialStock.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it("prioritizes persisted database articles without generating stock on the fly", async () => {
