@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache"
 import { isArticleCoherent } from "./article-dedup"
 import { getGeneratedEditorialStock } from "./editorial-stock"
 import { inferCategoryFromArticle } from "./news-categories"
+import { getArgentinaDateKey, safeGetLatestSiteSnapshot, safeUpsertSiteSnapshot } from "./site-snapshots"
 import { getDatabaseArticleBySlug, getDatabaseArticles, isTableMissingError } from "./supabase-admin"
 import type { ImpartialArticle } from "./types"
 
@@ -10,6 +11,8 @@ const RECENT_SIGNAL_WINDOW_HOURS = 72
 const MIN_HOMEPAGE_ARTICLES = 12
 const MIN_HOMEPAGE_CATEGORIES = 4
 const MAX_STALE_DATABASE_FILL = 4
+const PUBLISHED_ARTICLE_SNAPSHOT_TYPE = "published-article"
+const volatilePublishedArticleArchive = new Map<string, ImpartialArticle>()
 
 function dedupeArticles(articles: ImpartialArticle[]): ImpartialArticle[] {
   const seen = new Set<string>()
@@ -94,6 +97,36 @@ function isMissingIncrementalCacheError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("incrementalCache missing")
 }
 
+function rememberPublishedArticles(articles: ImpartialArticle[]) {
+  for (const article of articles) {
+    if (!article.slug) continue
+    volatilePublishedArticleArchive.set(article.slug, article)
+  }
+}
+
+async function persistPublishedArticlesSnapshot(articles: ImpartialArticle[]) {
+  if (articles.length === 0) return
+
+  const snapshotDate = getArgentinaDateKey()
+
+  try {
+    await Promise.all(
+      articles
+        .filter(article => article.slug)
+        .map(article =>
+          safeUpsertSiteSnapshot({
+            snapshotType: PUBLISHED_ARTICLE_SNAPSHOT_TYPE,
+            snapshotDate,
+            snapshotSlot: article.slug,
+            payload: article,
+          })
+        )
+    )
+  } catch {
+    // Snapshotting is best-effort and must not hide the published edition itself.
+  }
+}
+
 async function readPublishedArticles(): Promise<{
   articles: ImpartialArticle[]
   source: "database" | "generated" | "empty"
@@ -110,6 +143,8 @@ async function readPublishedArticles(): Promise<{
       freshestDatabaseHours > FRESH_SIGNAL_WINDOW_HOURS
 
     if (!needsEditorialSupport && freshDatabaseArticles.length > 0) {
+      rememberPublishedArticles(freshDatabaseArticles)
+      await persistPublishedArticlesSnapshot(freshDatabaseArticles)
       return {
         articles: freshDatabaseArticles,
         source: "database",
@@ -127,6 +162,8 @@ async function readPublishedArticles(): Promise<{
     }
 
     if (mergedArticles.length > 0) {
+      rememberPublishedArticles(mergedArticles)
+      await persistPublishedArticlesSnapshot(mergedArticles)
       return {
         articles: mergedArticles,
         source: freshDatabaseArticles.length > 0 ? "database" : "generated",
@@ -135,6 +172,8 @@ async function readPublishedArticles(): Promise<{
     }
 
     if (staleDatabaseArticles.length > 0) {
+      rememberPublishedArticles(staleDatabaseArticles)
+      await persistPublishedArticlesSnapshot(staleDatabaseArticles)
       return {
         articles: staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL),
         source: "database",
@@ -151,6 +190,8 @@ async function readPublishedArticles(): Promise<{
     try {
       const generatedArticles = (await getGeneratedEditorialStock()).filter(isArticleCoherent)
       if (generatedArticles.length > 0) {
+        rememberPublishedArticles(generatedArticles)
+        await persistPublishedArticlesSnapshot(generatedArticles)
         return {
           articles: sortPublishedArticles(generatedArticles),
           source: "generated",
@@ -198,17 +239,39 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
   source: "database" | "generated" | "empty"
 }> {
   try {
-    const article = await getDatabaseArticleBySlug(slug)
-    if (article && isArticleCoherent(article)) return { article, source: "database" }
+    const published = await listPublishedArticles()
+    const publishedArticle = published.articles.find(article => article.slug === slug)
+    if (publishedArticle) {
+      rememberPublishedArticles([publishedArticle])
+      return { article: publishedArticle, source: published.source }
+    }
   } catch {
     // Fall through to generated content.
   }
 
+  const archivedArticle = volatilePublishedArticleArchive.get(slug)
+  if (archivedArticle) {
+    return { article: archivedArticle, source: "generated" }
+  }
+
   try {
-    const published = await listPublishedArticles()
-    const publishedArticle = published.articles.find(article => article.slug === slug)
-    if (publishedArticle) {
-      return { article: publishedArticle, source: published.source }
+    const storedSnapshot = await safeGetLatestSiteSnapshot<ImpartialArticle>(
+      PUBLISHED_ARTICLE_SNAPSHOT_TYPE,
+      slug
+    )
+    if (storedSnapshot?.payload && isArticleCoherent(storedSnapshot.payload)) {
+      rememberPublishedArticles([storedSnapshot.payload])
+      return { article: storedSnapshot.payload, source: "generated" }
+    }
+  } catch {
+    // Fall through to database lookup.
+  }
+
+  try {
+    const article = await getDatabaseArticleBySlug(slug)
+    if (article && isArticleCoherent(article)) {
+      rememberPublishedArticles([article])
+      return { article, source: "database" }
     }
   } catch {
     // Fall through to generated content.
@@ -220,6 +283,7 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
       .filter(isArticleCoherent)
       .find(article => article.slug === slug)
     if (generatedArticle) {
+      rememberPublishedArticles([generatedArticle])
       return { article: generatedArticle, source: "generated" }
     }
   } catch {

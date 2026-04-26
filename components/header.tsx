@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { Menu, X } from "lucide-react"
+import { EditorialPromise } from "@/components/editorial-promise"
 
 const navItems = [
   { label: "Politica", href: "/seccion/politica" },
@@ -39,6 +40,7 @@ export function Header({ dateString }: HeaderProps) {
           <p className="mt-2 text-sm tracking-[0.28em] text-muted-foreground uppercase">
             La noticia, sin adjetivos
           </p>
+          <EditorialPromise compact />
         </div>
 
         {/* Desktop nav */}

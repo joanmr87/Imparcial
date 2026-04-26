@@ -1,9 +1,11 @@
 import Image from "next/image"
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import { EditorialPromise } from "@/components/editorial-promise"
 import { Header } from "@/components/header"
 import { TransparencyPanel } from "@/components/transparency-panel"
-import { findPublishedArticleBySlug } from "@/lib/articles"
+import { findPublishedArticleBySlug, listPublishedArticles } from "@/lib/articles"
+import { getGeneratedEditorialStock } from "@/lib/editorial-stock"
 import { formatArgentinaLongDate } from "@/lib/date-format"
 import { Separator } from "@/components/ui/separator"
 
@@ -11,6 +13,28 @@ export const revalidate = 1800
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>
+}
+
+export async function generateStaticParams() {
+  const [published, generated] = await Promise.allSettled([
+    listPublishedArticles(),
+    getGeneratedEditorialStock(),
+  ])
+  const slugs = new Set<string>()
+
+  if (published.status === "fulfilled") {
+    for (const article of published.value.articles) {
+      if (article.slug) slugs.add(article.slug)
+    }
+  }
+
+  if (generated.status === "fulfilled") {
+    for (const article of generated.value) {
+      if (article.slug) slugs.add(article.slug)
+    }
+  }
+
+  return [...slugs].map(slug => ({ slug }))
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
@@ -38,6 +62,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       <Header dateString={dateString} />
 
       <main className="mx-auto max-w-5xl px-4 py-10">
+        <section className="mb-8 rounded-[1.5rem] border border-border bg-card/70 px-5 py-4 shadow-[0_12px_30px_rgba(28,28,28,0.04)]">
+          <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+            Que estas leyendo
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-foreground/80">
+            Esta nota es una sintesis editorial generada con IA a partir de varias coberturas sobre el mismo hecho.
+            Busca bajar el peso de una sola linea editorial y separar mejor hechos, atribuciones y diferencias.
+          </p>
+          <EditorialPromise centered={false} compact />
+        </section>
+
         {/* Breadcrumb */}
         <nav className="mb-8 text-xs text-muted-foreground">
           <Link href="/" className="hover:text-foreground transition-colors">
