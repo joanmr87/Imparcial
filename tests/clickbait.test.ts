@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deriveClickbaitFallbackAnswer, extractArticleContextFromHtml } from "../lib/clickbait"
+import { deriveClickbaitFallbackAnswer, extractArticleContextFromHtml, sanitizeClickbaitAnswer } from "../lib/clickbait"
 import type { RSSItem } from "../lib/types"
 
 function makeItem(overrides: Partial<RSSItem>): RSSItem {
@@ -100,6 +100,17 @@ describe("clickbait fallback answers", () => {
     expect(deriveClickbaitFallbackAnswer(item)).toBe("Lácteos Verónica, SanCor, Luz Azul, Sudamericana Lácteos, Saputo")
   })
 
+  it("extracts a bare place for resolvable location-list titles", () => {
+    const item = makeItem({
+      source: "La Nacion",
+      sourceId: "lanacion",
+      title: "Cuáles son las ubicaciones gratis para ver a Colapinto en el Road Show de Buenos Aires",
+      description: "El mejor punto para acercarse al circuito estará en Palermo, cerca del sector abierto al público.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBe("Palermo")
+  })
+
   it("extracts the hidden identity when a sports title withholds the player's name", () => {
     const item = makeItem({
       source: "TN",
@@ -144,6 +155,28 @@ describe("clickbait fallback answers", () => {
     expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
   })
 
+  it("rejects abstract list hooks that do not hide a compact factual answer", () => {
+    const item = makeItem({
+      source: "La Nacion",
+      sourceId: "lanacion",
+      title: "Cuáles son los secretos que esconde el Ártico, uno de los lugares más misteriosos del planeta",
+      description: "Un investigador científico pasó el día en Chubut y explicó por qué la región despierta interés en Argentina.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
+  it("rejects workout listicles whose fallback would become keyword soup", () => {
+    const item = makeItem({
+      source: "Infobae",
+      sourceId: "infobae",
+      title: "Cuáles son los 10 ejercicios que deberían priorizar los hombres después de los 40 para ganar músculo",
+      description: "Tom Ragusa recomienda una rutina de men health con fuerza, movilidad y constancia semanal.",
+    })
+
+    expect(deriveClickbaitFallbackAnswer(item)).toBeNull()
+  })
+
   it("rejects sports controversy titles that do not hide a direct factual answer", () => {
     const item = makeItem({
       source: "Minuto Uno",
@@ -175,5 +208,25 @@ describe("clickbait fallback answers", () => {
 
     expect(extractArticleContextFromHtml(html)).toContain("Emiliano Martínez")
     expect(extractArticleContextFromHtml(html)).toContain("Enzo Fernández")
+  })
+})
+
+describe("clickbait answer sanitizing", () => {
+  it("rejects keyword-soup answers even when they are capitalized nouns", () => {
+    expect(
+      sanitizeClickbaitAnswer(
+        "Nueva, Ganancias, ARCA, Cuáles, Las, Controlar",
+        "Cuáles son las escalas y las cuotas del monotributo de ARCA en mayo 2026"
+      )
+    ).toBeNull()
+  })
+
+  it("keeps compact brand lists when the title actually asks for a named list", () => {
+    expect(
+      sanitizeClickbaitAnswer(
+        "Lácteos Verónica, SanCor, Luz Azul, Sudamericana Lácteos, Saputo",
+        "Cuáles son las marcas emblemáticas de leche, queso y yogurt que quebraron o están colapsando"
+      )
+    ).toBe("Lácteos Verónica, SanCor, Luz Azul, Sudamericana Lácteos, Saputo")
   })
 })

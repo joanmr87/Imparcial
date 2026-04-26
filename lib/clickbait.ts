@@ -113,6 +113,60 @@ const REJECT_PATTERNS = [
   /\by por qu[eé]\b/i,
 ]
 
+const ABSTRACT_LIST_PATTERNS = [
+  /\bsecretos?\b/i,
+  /\bejercicios?\b/i,
+  /\bconsejos?\b/i,
+  /\btrucos?\b/i,
+  /\bclaves?\b/i,
+  /\btips?\b/i,
+  /\bhabitos?\b/i,
+  /\bformas?\b/i,
+  /\bmaneras?\b/i,
+]
+
+const LOCATION_LIST_PATTERNS = [
+  /\bubicaciones?\b/i,
+  /\blugares?\b/i,
+  /\bpuntos?\b/i,
+  /\bzonas?\b/i,
+  /\bbarrios?\b/i,
+  /\baccesos?\b/i,
+]
+
+const KEYWORD_SOUP_STOPWORDS = new Set([
+  "cual",
+  "cuales",
+  "que",
+  "quien",
+  "quienes",
+  "como",
+  "cuando",
+  "donde",
+  "las",
+  "los",
+  "una",
+  "uno",
+  "unos",
+  "unas",
+  "del",
+  "para",
+  "con",
+  "sin",
+  "nueva",
+  "nuevo",
+  "dia",
+  "lista",
+  "secreto",
+  "secretos",
+  "ejercicio",
+  "ejercicios",
+  "cuota",
+  "cuotas",
+  "escala",
+  "escalas",
+])
+
 function normalizeText(text: string): string {
   return text
     .normalize("NFD")
@@ -136,6 +190,30 @@ function looksLikePotentialClickbait(item: RSSItem): boolean {
   if (!hasDirectValuePattern && !hasHintPattern) return false
 
   return normalizedTitle.length >= 18
+}
+
+function expectsLocationListAnswer(title: string): boolean {
+  return /\b(cuales|cu[aá]les)\b/.test(title) && LOCATION_LIST_PATTERNS.some(pattern => pattern.test(title))
+}
+
+function isAbstractListTitle(title: string): boolean {
+  return /\b(cuales|cu[aá]les)\b/.test(title) && ABSTRACT_LIST_PATTERNS.some(pattern => pattern.test(title))
+}
+
+function requiresSplitAnswer(title: string): boolean {
+  if (!/\b(cuales|cu[aá]les)\b/.test(title)) return false
+
+  if (/\by por qu[eé]\b/.test(title)) return true
+
+  return /\b(escalas|cuotas|requisitos|documentos|formularios|montos|valores|pasos|fechas)\b/.test(title)
+    && /\b y \b/.test(title)
+}
+
+function supportsCompactListAnswer(title: string): boolean {
+  if (requiresSplitAnswer(title)) return false
+  if (isAbstractListTitle(title)) return false
+
+  return expectsNamedListAnswer(title) || expectsLocationListAnswer(title)
 }
 
 function scorePotentialClickbait(item: RSSItem): number {
@@ -323,6 +401,18 @@ function looksLikeLocationAnswer(answer: string): boolean {
   return hasLocationPrefix && hasPlaceCue && !hasAbstractCue
 }
 
+function looksLikeBarePlaceAnswer(answer: string): boolean {
+  const clean = answer.trim()
+  if (!clean) return false
+
+  const normalizedAnswer = normalizeText(clean)
+  if (/\b(respuesta|dificultad|firmeza|fe|sentido|forma|manera|motivo|razon|esperanza)\b/.test(normalizedAnswer)) {
+    return false
+  }
+
+  return /^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){0,3}$/.test(clean)
+}
+
 function looksLikeAmountAnswer(answer: string): boolean {
   const normalizedAnswer = normalizeText(answer)
   return /^\$/.test(answer.trim())
@@ -352,6 +442,33 @@ function looksLikeCausalAnswer(answer: string): boolean {
   return /^(porque|por\s+(la|el|los|las|un|una)|debido a|ya que|ante\s+|tras\s+)/.test(normalizedAnswer)
 }
 
+function looksLikeKeywordSoup(answer: string, title?: string): boolean {
+  const parts = answer
+    .split(",")
+    .map(part => part.trim())
+    .filter(Boolean)
+
+  if (parts.length < 3) return false
+
+  const titleTokens = new Set(tokenizeLoose(title || ""))
+  const normalizedParts = parts.map(part => normalizeText(part))
+  const stopwordHits = normalizedParts.filter(part =>
+    part.split(/\s+/).some(token => KEYWORD_SOUP_STOPWORDS.has(token))
+  ).length
+  const titleOnlyHits = normalizedParts.filter(part => {
+    const tokens = part.split(/\s+/).filter(token => token.length > 2)
+    return tokens.length > 0 && tokens.every(token => titleTokens.has(token))
+  }).length
+  const multiWordCount = parts.filter(part => part.split(/\s+/).length >= 2).length
+  const numericCount = parts.filter(part => /\d|%|\$/.test(part)).length
+
+  if (stopwordHits > 0) return true
+  if (titleOnlyHits >= Math.ceil(parts.length / 2)) return true
+  if (parts.length >= 4 && multiWordCount === 0 && numericCount === 0) return true
+
+  return false
+}
+
 function expectsNamedListAnswer(title: string): boolean {
   return /\b(cuales|cu[aá]les)\b/.test(title)
     && /\b(declaraciones juradas|documentos|requisitos|papeles|formularios|medios|pasos|claves|nombres|convocados|marcas|autos)\b/.test(title)
@@ -369,9 +486,18 @@ function answerMatchesTitleNeed(title: string, answer: string): boolean {
   const normalizedAnswer = normalizeText(answer)
   const looksLikeDate = looksLikeDateAnswer(answer)
   const looksLikePlace = looksLikeLocationAnswer(answer)
+  const looksLikeBarePlace = looksLikeBarePlaceAnswer(answer)
   const looksLikePercent = /\b\d{1,2}(?:[.,]\d+)?\s?%/.test(normalizedAnswer)
   const looksLikeTemperature = /\b(hasta\s+)?\d{2}\s?°/.test(normalizedAnswer)
   const looksLikeList = normalizedAnswer.includes(",")
+
+  if (looksLikeKeywordSoup(answer, title)) {
+    return false
+  }
+
+  if (requiresSplitAnswer(normalizedTitle)) {
+    return false
+  }
 
   if (/^[^a-z0-9]*por que\b/.test(normalizedTitle)) {
     return looksLikeCausalAnswer(answer) && addsNewInformation(title, answer)
@@ -383,6 +509,10 @@ function answerMatchesTitleNeed(title: string, answer: string): boolean {
 
   if (/\bdonde\b/.test(normalizedTitle)) {
     return looksLikePlace
+  }
+
+  if (expectsLocationListAnswer(normalizedTitle)) {
+    return (looksLikePlace || looksLikeBarePlace) && addsNewInformation(title, answer)
   }
 
   if (/\b(cuando|fecha|que dia|hasta cuando)\b/.test(normalizedTitle)) {
@@ -417,7 +547,7 @@ function answerMatchesTitleNeed(title: string, answer: string): boolean {
     return false
   }
 
-  if (looksLikeList && !/\b(cuales|marcas|autos|convocad|citacion|lista)\b/.test(normalizedTitle)) return false
+  if (looksLikeList && !supportsCompactListAnswer(normalizedTitle)) return false
 
   if (!addsNewInformation(title, answer) && !looksLikePercent && !looksLikeTemperature) return false
 
@@ -432,13 +562,19 @@ function isValidClickbaitAnswer(answer: string, title?: string): boolean {
   if (/^(no se sabe|sin datos|en vivo)$/i.test(clean)) return false
   if (/^(el gobierno|en estados unidos|en mexico|en uruguay)$/i.test(clean)) return false
   if (looksLikePureAmountList(clean) && (!title || !/\b(a cuanto|multa|montos?|valores?)\b/i.test(title))) return false
+  if (looksLikeKeywordSoup(clean, title)) return false
   if (title && !answerMatchesTitleNeed(title, clean)) return false
   return true
 }
 
-function normalizeResolvedAnswer(answer: string | null, title?: string): string | null {
+export function sanitizeClickbaitAnswer(answer: string | null, title?: string): string | null {
   if (!answer) return null
-  return isValidClickbaitAnswer(answer, title) ? answer : null
+  const clean = answer.trim()
+  return isValidClickbaitAnswer(clean, title) ? clean : null
+}
+
+function normalizeResolvedAnswer(answer: string | null, title?: string): string | null {
+  return sanitizeClickbaitAnswer(answer, title)
 }
 
 function extractCapitalizedName(description: string): string | null {
@@ -477,12 +613,26 @@ function extractNameList(text: string, maxItems = 5): string | null {
   return names.length >= 2 ? names.join(", ") : null
 }
 
+function extractLocationName(text: string): string | null {
+  const match = text.match(
+    /\b(?:en|desde|sobre|frente a|frente al|frente a la|frente a las)\s+([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+){0,3})/
+  )
+
+  if (!match) return null
+
+  return match[1].trim()
+}
+
 function deriveClickbaitFallbackAnswerFromContext(item: RSSItem, extraContext: string): string | null {
   const title = normalizeText(item.title)
   const context = `${item.description.trim()} ${extraContext.trim()}`.trim()
   if (!context) return null
 
   if (/^[^a-z0-9]*por que\b/.test(title)) {
+    return null
+  }
+
+  if (requiresSplitAnswer(title) || isAbstractListTitle(title)) {
     return null
   }
 
@@ -511,6 +661,10 @@ function deriveClickbaitFallbackAnswerFromContext(item: RSSItem, extraContext: s
     return normalizeResolvedAnswer(placeMatch ? cleanShortAnswer(placeMatch[0]) : null, item.title)
   }
 
+  if (expectsLocationListAnswer(title)) {
+    return normalizeResolvedAnswer(extractLocationName(context), item.title)
+  }
+
   if (/\bcalor\b|\btemperatura\b|\bmeteorologic/.test(title)) {
     const tempMatches = [...context.matchAll(/\b(\d{2})\s?°/g)].map(match => Number(match[1]))
     if (tempMatches.length > 0) {
@@ -536,7 +690,7 @@ function deriveClickbaitFallbackAnswerFromContext(item: RSSItem, extraContext: s
     return normalizeResolvedAnswer(extractCapitalizedName(context), item.title)
   }
 
-  if (/\bcuales son\b/.test(title)) {
+  if (expectsNamedListAnswer(title)) {
     const extractedNames = extractNameList(context, 6)
     if (extractedNames) return normalizeResolvedAnswer(extractedNames, item.title)
 
@@ -717,6 +871,16 @@ function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterIt
   return fallbackItems
 }
 
+function isRenderableClickbaitItem(item: ClickbaitBusterItem): boolean {
+  return Boolean(
+    item.id
+    && item.title?.trim()
+    && item.source?.trim()
+    && item.url?.trim()
+    && sanitizeClickbaitAnswer(item.answer, item.title)
+  )
+}
+
 function clickbaitRankingScore(item: ClickbaitBusterItem): number {
   return item.rankingScore || 0
 }
@@ -739,7 +903,7 @@ function mergeClickbaitItems(
   previousItems: ClickbaitBusterItem[],
   limit = CLICKBAIT_TARGET_ITEMS
 ): ClickbaitBusterItem[] {
-  const merged = dedupeClickbaitItems([...freshItems, ...previousItems])
+  const merged = dedupeClickbaitItems([...freshItems, ...previousItems].filter(isRenderableClickbaitItem))
     .sort((left, right) => clickbaitRankingScore(right) - clickbaitRankingScore(left))
     .slice(0, limit)
 
@@ -803,9 +967,13 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
     snapshotDate,
     CLICKBAIT_SNAPSHOT_SLOT
   )
-  const todayItems = todaySnapshot?.payload.items || []
+  const todayItems = (todaySnapshot?.payload.items || []).filter(isRenderableClickbaitItem)
 
-  if (todayItems.length >= CLICKBAIT_TARGET_ITEMS && todaySnapshot) {
+  if (
+    todaySnapshot
+    && todayItems.length >= CLICKBAIT_TARGET_ITEMS
+    && todayItems.length === (todaySnapshot.payload.items || []).length
+  ) {
     return todaySnapshot.payload
   }
 
@@ -815,7 +983,7 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
   )
   const previousItems = latestSnapshot?.snapshotDate === snapshotDate
     ? []
-    : (latestSnapshot?.payload.items || [])
+    : (latestSnapshot?.payload.items || []).filter(isRenderableClickbaitItem)
 
   if (todaySnapshot) {
     const emergencyItems = await getEmergencyClickbaitBusters()
