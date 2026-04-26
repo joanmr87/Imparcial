@@ -32,14 +32,28 @@ export function SiteFooter({ className = "" }: SiteFooterProps) {
             <p className="text-xs tracking-widest text-muted-foreground uppercase">
               Contacto
             </p>
-            <a
-              href="https://www.linkedin.com/in/joanmromero/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-flex text-sm text-foreground underline-offset-4 transition-colors hover:text-muted-foreground hover:underline"
-            >
-              linkedin.com/in/joanmromero
-            </a>
+            <div className="mt-2 flex flex-col items-center gap-1.5 text-sm md:items-end">
+              <a
+                href="mailto:joanmr87@gmail.com"
+                className="text-foreground underline-offset-4 transition-colors hover:text-muted-foreground hover:underline"
+              >
+                joanmr87@gmail.com
+              </a>
+              <a
+                href="tel:+5492984388886"
+                className="text-foreground underline-offset-4 transition-colors hover:text-muted-foreground hover:underline"
+              >
+                +54 9 2984 38-8886
+              </a>
+              <a
+                href="https://www.linkedin.com/in/joanmromero/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground underline-offset-4 transition-colors hover:text-muted-foreground hover:underline"
+              >
+                linkedin.com/in/joanmromero
+              </a>
+            </div>
           </div>
         </div>
       </div>
