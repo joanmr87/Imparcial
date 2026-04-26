@@ -110,6 +110,25 @@ describe("published articles selection", () => {
     expect(getGeneratedEditorialStock).toHaveBeenCalledOnce()
   })
 
+  it("resolves a slug from the currently published edition when it is not persisted yet", async () => {
+    getDatabaseArticleBySlug.mockResolvedValue(null)
+    getDatabaseArticles.mockResolvedValue([
+      makeArticle({
+        id: "gen-visible-1",
+        slug: "slug-visible-en-portada",
+        title: "Nota visible en portada",
+        category: "Deportes",
+      }),
+    ])
+    getGeneratedEditorialStock.mockResolvedValue([])
+
+    const { findPublishedArticleBySlug } = await import("../lib/articles")
+    const result = await findPublishedArticleBySlug("slug-visible-en-portada")
+
+    expect(result.source).toBe("database")
+    expect(result.article?.slug).toBe("slug-visible-en-portada")
+  })
+
   it("supplements a sparse or stale persisted edition with fresher generated coverage", async () => {
     getDatabaseArticles.mockResolvedValue([
       makeArticle({

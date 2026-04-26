@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { z } from "zod"
@@ -73,6 +74,24 @@ function generateSlug(title: string): string {
     .slice(0, 80)
 }
 
+function generateStableArticleSlug(title: string, topic: string, articles: SourceArticleInput[]): string {
+  const base = generateSlug(title || topic) || generateSlug(topic) || "nota"
+  const fingerprint = createHash("sha1")
+    .update(normalizeText(topic))
+    .update("|")
+    .update(
+      [...articles]
+        .map(article => `${article.sourceId || article.source}:${article.link}`)
+        .sort()
+        .join("|")
+    )
+    .digest("hex")
+    .slice(0, 8)
+
+  const trimmedBase = base.slice(0, Math.max(24, 79 - fingerprint.length - 1))
+  return `${trimmedBase}-${fingerprint}`
+}
+
 function determineStatus(facts: Array<{ status: FactStatus }>): ArticleStatus {
   if (facts.some(fact => fact.status === "disputed")) return "disputed"
   if (facts.some(fact => fact.status === "developing" || fact.status === "reported")) {
@@ -86,15 +105,6 @@ function buildContent(article: z.infer<typeof editorialSchema>): string {
   const sections: string[] = []
 
   sections.push(article.bodyParagraphs.join("\n\n"))
-  sections.push("**Claves del hecho**")
-  sections.push(article.facts.map(fact => `- ${fact.text}`).join("\n"))
-
-  sections.push("**Lo que aportan las coberturas**")
-  sections.push(
-    article.attributedReporting
-      .map(item => `${item.source}: ${item.claim}.`)
-      .join("\n\n")
-  )
 
   if (article.discrepancies.length > 0) {
     sections.push("**Versiones que siguen abiertas**")
@@ -136,32 +146,92 @@ function clipText(text: string, maxLength: number): string {
   return `${clean.slice(0, maxLength - 1).trimEnd()}…`
 }
 
-function extractDescriptionSentences(articles: SourceArticleInput[]): Array<{
+function toSentence(text: string): string {
+  const clean = text.replace(/\s+/g, " ").trim().replace(/[.;:,\-–\s]+$/g, "")
+  if (!clean) return ""
+  return /[.!?]$/.test(clean) ? clean : `${clean}.`
+}
+
+function tokenSet(text: string): Set<string> {
+  return new Set(
+    normalizeText(text)
+      .split(/[^a-z0-9]+/)
+      .filter(token => token.length >= 4)
+  )
+}
+
+function overlapsMeaningfully(left: string, right: string): boolean {
+  const leftTokens = tokenSet(left)
+  const rightTokens = tokenSet(right)
+  if (leftTokens.size === 0 || rightTokens.size === 0) return false
+
+  let shared = 0
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) shared += 1
+  }
+
+  const overlap = shared / Math.min(leftTokens.size, rightTokens.size)
+  return overlap >= 0.65
+}
+
+function pickDistinctTexts(
+  items: Array<{ text: string; source: string }>,
+  limit: number,
+  excluded: string[] = []
+): Array<{ text: string; source: string }> {
+  const selected: Array<{ text: string; source: string }> = []
+  const blocked = [...excluded]
+
+  for (const item of items) {
+    if (!item.text) continue
+    if (blocked.some(existing => overlapsMeaningfully(existing, item.text))) continue
+    if (selected.some(existing => overlapsMeaningfully(existing.text, item.text))) continue
+    selected.push(item)
+    blocked.push(item.text)
+    if (selected.length >= limit) break
+  }
+
+  return selected
+}
+
+function extractCoverageFragments(articles: SourceArticleInput[]): Array<{
   text: string
   source: string
 }> {
   const seen = new Set<string>()
-  const sentences: Array<{ text: string; source: string }> = []
+  const fragments: Array<{ text: string; source: string }> = []
 
   for (const article of articles) {
+    const titleFragment = toSentence(stripHeadlineNoise(article.title))
+    if (titleFragment.length >= 35) {
+      const normalizedTitle = normalizeText(titleFragment)
+      if (!seen.has(normalizedTitle)) {
+        seen.add(normalizedTitle)
+        fragments.push({
+          text: clipText(titleFragment, 220),
+          source: article.source,
+        })
+      }
+    }
+
     const parts = article.description
       .split(/(?<=[.!?])\s+/)
-      .map(part => part.trim())
+      .map(part => toSentence(part))
       .filter(part => part.length >= 35)
 
     for (const part of parts) {
       const normalized = normalizeText(part)
       if (seen.has(normalized)) continue
       seen.add(normalized)
-      sentences.push({
+      fragments.push({
         text: clipText(part, 220),
         source: article.source,
       })
-      if (sentences.length >= 8) return sentences
+      if (fragments.length >= 12) return fragments
     }
   }
 
-  return sentences
+  return fragments
 }
 
 function pickFallbackTitle(topic: string, articles: SourceArticleInput[]): string {
@@ -187,59 +257,94 @@ function inferFallbackCategory(articles: SourceArticleInput[]): string {
   return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || "Sociedad"
 }
 
-function buildFallbackSummary(topic: string, _articles: SourceArticleInput[], sentences: Array<{ text: string; source: string }>): string {
-  const opening = sentences[0]?.text || stripHeadlineNoise(topic)
-  const context = sentences[1]?.text
+function buildFallbackSummary(topic: string, _articles: SourceArticleInput[], fragments: Array<{ text: string; source: string }>): string {
+  const selected = pickDistinctTexts(fragments, 2, [stripHeadlineNoise(topic)])
+  const opening = selected[0]?.text || toSentence(stripHeadlineNoise(topic))
+  const context = selected[1]?.text
 
   return clipText(
     [
       opening,
       context,
-      sentences[2]?.text,
     ]
       .filter(Boolean)
       .join(" "),
-    320
+    280
   )
 }
 
-function buildFallbackBodyParagraphs(topic: string, _articles: SourceArticleInput[], sentences: Array<{ text: string; source: string }>): string[] {
-  const topicLine = stripHeadlineNoise(topic)
-  const sentencePool = sentences.map(sentence => sentence.text)
+function fallbackContextLine(category: string): string {
+  switch (category) {
+    case "Deportes":
+      return "El caso impacta de forma directa en la agenda deportiva inmediata, tanto por sus consecuencias competitivas como por lo que deja planteado para las próximas horas."
+    case "Economia":
+      return "El tema suma impacto inmediato sobre precios, expectativas o decisiones económicas que siguen bajo observación."
+    case "Politica":
+      return "El episodio agrega un frente político de seguimiento inmediato por sus efectos institucionales y por las reacciones que pueda generar."
+    default:
+      return "El tema sigue bajo seguimiento por sus efectos inmediatos y por las precisiones oficiales que todavía pueden aparecer."
+  }
+}
+
+function buildFallbackBodyParagraphs(
+  topic: string,
+  _articles: SourceArticleInput[],
+  fragments: Array<{ text: string; source: string }>,
+  category: string,
+  summary: string
+): string[] {
+  const topicLine = toSentence(stripHeadlineNoise(topic))
+  const selected = pickDistinctTexts(fragments, 5, [summary])
+  const lead = selected[0]?.text || topicLine
+  const support = selected[1]?.text
+  const context = selected[2]?.text
+  const detail = selected[3]?.text
+  const close = selected[4]?.text
+
   const paragraphs = [
-    sentencePool[0] || topicLine,
-    sentencePool[1]
-      ? `${topicLine}. ${sentencePool[1]}`
-      : sentencePool[0] || `Las distintas coberturas coinciden en los puntos centrales de ${topicLine.toLowerCase()}.`,
-    sentencePool[2]
-      ? sentencePool[2]
-      : `El desarrollo del tema mantiene impacto en Argentina por sus efectos inmediatos y por las decisiones que siguen en curso.`,
-    sentencePool[3]
-      ? sentencePool[3]
-      : sentencePool[1] || `Todavía quedan aspectos bajo seguimiento mientras aparecen nuevas precisiones en las coberturas.`,
+    clipText([lead, support].filter(Boolean).join(" "), 360),
+    clipText(context || detail || fallbackContextLine(category), 340),
+    clipText(detail && detail !== context ? detail : fallbackContextLine(category), 340),
+    clipText(close || "La atención queda puesta en las próximas precisiones oficiales y en cómo evolucione el tema a corto plazo.", 340),
   ]
 
-  return paragraphs
-    .filter(Boolean)
-    .map(paragraph => clipText(paragraph, 340))
+  const distinctParagraphs = pickDistinctTexts(
+    paragraphs.map(text => ({ text, source: "sintesis" })),
+    4
+  ).map(item => item.text)
+
+  const fallbackParagraphs = [
+    fallbackContextLine(category),
+    "Con el hecho principal ya instalado, el foco pasa ahora por las confirmaciones oficiales y por los efectos concretos que pueda tener en el corto plazo.",
+  ]
+
+  for (const paragraph of fallbackParagraphs) {
+    if (distinctParagraphs.length >= 4) break
+    if (distinctParagraphs.some(existing => overlapsMeaningfully(existing, paragraph))) continue
+    distinctParagraphs.push(paragraph)
+  }
+
+  return distinctParagraphs.slice(0, 4)
 }
 
 function buildFallbackFacts(
-  sentences: Array<{ text: string; source: string }>
+  fragments: Array<{ text: string; source: string }>,
+  excluded: string[]
 ): Array<{ text: string; confirmedBy: string[]; status: FactStatus }> {
-  return sentences.slice(0, 4).map(sentence => ({
-    text: sentence.text,
-    confirmedBy: [sentence.source],
+  return pickDistinctTexts(fragments, 4, excluded).map(fragment => ({
+    text: fragment.text,
+    confirmedBy: [fragment.source],
     status: "reported",
   }))
 }
 
 function buildFallbackAttributedReporting(
-  sentences: Array<{ text: string; source: string }>
+  fragments: Array<{ text: string; source: string }>,
+  excluded: string[]
 ): Array<{ source: string; claim: string }> {
-  return sentences.slice(0, 4).map(sentence => ({
-    source: sentence.source,
-    claim: sentence.text,
+  return pickDistinctTexts(fragments, 4, excluded).map(fragment => ({
+    source: fragment.source,
+    claim: fragment.text.replace(/[.!?]$/, ""),
   }))
 }
 
@@ -249,17 +354,18 @@ function pickHeroImage(articles: SourceArticleInput[]): string | undefined {
 
 function buildFallbackArticle(topic: string, articles: SourceArticleInput[]): ImpartialArticle {
   const now = new Date().toISOString()
-  const sentences = extractDescriptionSentences(articles)
+  const fragments = extractCoverageFragments(articles)
   const title = pickFallbackTitle(topic, articles)
-  const summary = buildFallbackSummary(topic, articles, sentences)
+  const summary = buildFallbackSummary(topic, articles, fragments)
   const category = inferFallbackCategory(articles)
-  const bodyParagraphs = buildFallbackBodyParagraphs(topic, articles, sentences)
-  const facts = buildFallbackFacts(sentences)
-  const attributedReporting = buildFallbackAttributedReporting(sentences)
+  const bodyParagraphs = buildFallbackBodyParagraphs(topic, articles, fragments, category, summary)
+  const excluded = [summary, ...bodyParagraphs]
+  const facts = buildFallbackFacts(fragments, excluded)
+  const attributedReporting = buildFallbackAttributedReporting(fragments, [...excluded, ...facts.map(fact => fact.text)])
 
   return {
     id: crypto.randomUUID(),
-    slug: generateSlug(title),
+    slug: generateStableArticleSlug(title, topic, articles),
     title,
     summary,
     content: buildContent({
@@ -346,7 +452,7 @@ export async function generateImpartialArticle(
       return {
         article: {
           id: crypto.randomUUID(),
-          slug: generateSlug(object.title),
+          slug: generateStableArticleSlug(object.title, topic, articles),
           title: object.title,
           summary: object.summary,
           content: buildContent(object),

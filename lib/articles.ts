@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache"
 import { isArticleCoherent } from "./article-dedup"
 import { getGeneratedEditorialStock } from "./editorial-stock"
 import { inferCategoryFromArticle } from "./news-categories"
@@ -89,7 +90,11 @@ function mergePublishedArticles(
   return sortPublishedArticles(dedupeArticles([...leadingArticles, ...trailingArticles])).slice(0, limit)
 }
 
-export async function listPublishedArticles(): Promise<{
+function isMissingIncrementalCacheError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("incrementalCache missing")
+}
+
+async function readPublishedArticles(): Promise<{
   articles: ImpartialArticle[]
   source: "database" | "generated" | "empty"
   warning?: string
@@ -166,6 +171,28 @@ export async function listPublishedArticles(): Promise<{
   }
 }
 
+const getCachedPublishedArticles = unstable_cache(
+  readPublishedArticles,
+  ["published-articles-v1"],
+  { revalidate: 900 }
+)
+
+export async function listPublishedArticles(): Promise<{
+  articles: ImpartialArticle[]
+  source: "database" | "generated" | "empty"
+  warning?: string
+}> {
+  try {
+    return await getCachedPublishedArticles()
+  } catch (error) {
+    if (isMissingIncrementalCacheError(error)) {
+      return readPublishedArticles()
+    }
+
+    throw error
+  }
+}
+
 export async function findPublishedArticleBySlug(slug: string): Promise<{
   article: ImpartialArticle | null
   source: "database" | "generated" | "empty"
@@ -173,6 +200,16 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
   try {
     const article = await getDatabaseArticleBySlug(slug)
     if (article && isArticleCoherent(article)) return { article, source: "database" }
+  } catch {
+    // Fall through to generated content.
+  }
+
+  try {
+    const published = await listPublishedArticles()
+    const publishedArticle = published.articles.find(article => article.slug === slug)
+    if (publishedArticle) {
+      return { article: publishedArticle, source: published.source }
+    }
   } catch {
     // Fall through to generated content.
   }
