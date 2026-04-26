@@ -5,6 +5,7 @@ import { ClickbaitBustersSection } from "@/components/clickbait-busters-section"
 import { Header } from "@/components/header"
 import { HomepageSectionBlock } from "@/components/homepage-section"
 import { LegacySectionRedirect } from "@/components/legacy-section-redirect"
+import { SiteFooter } from "@/components/site-footer"
 import { getPublishedClickbaitEdition } from "@/lib/clickbait"
 import { formatArgentinaLongDate } from "@/lib/date-format"
 import { getHomepageEdition } from "@/lib/homepage"
@@ -195,23 +196,7 @@ export async function HomepageView({
         </section>
       </main>
 
-      <footer className="border-t border-border">
-        <div className="mx-auto max-w-5xl px-4 py-8">
-          <div className="flex flex-col items-center gap-4 text-center md:flex-row md:justify-between md:text-left">
-            <div>
-              <p className="font-serif text-lg font-semibold text-foreground">
-                Diario Imparcial
-              </p>
-              <p className="text-xs text-muted-foreground">
-                La noticia, sin adjetivos.
-              </p>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Diario generado íntegramente con IA y reglas públicas de trazabilidad editorial.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Header } from "@/components/header"
+import { SiteFooter } from "@/components/site-footer"
 import { formatArgentinaLongDate } from "@/lib/date-format"
 import { Separator } from "@/components/ui/separator"
 
@@ -131,6 +132,8 @@ export default function MethodologyPage() {
           </p>
         </section>
       </main>
+
+      <SiteFooter />
     </div>
   )
 }

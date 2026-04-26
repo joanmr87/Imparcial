@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { EditorialPromise } from "@/components/editorial-promise"
 import { Header } from "@/components/header"
+import { SiteFooter } from "@/components/site-footer"
 import { TransparencyPanel } from "@/components/transparency-panel"
 import { findPublishedArticleBySlug, listPublishedArticles } from "@/lib/articles"
 import { getGeneratedEditorialStock } from "@/lib/editorial-stock"
@@ -190,19 +191,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="mt-16 border-t border-border">
-        <div className="mx-auto max-w-5xl px-4 py-8">
-          <div className="text-center">
-            <Link href="/" className="font-serif text-lg font-semibold text-foreground hover:text-muted-foreground transition-colors">
-              Diario Imparcial
-            </Link>
-            <p className="mt-1 text-xs text-muted-foreground">
-              La noticia, sin adjetivos.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter className="mt-16" />
     </div>
   )
 }
