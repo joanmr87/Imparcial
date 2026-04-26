@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { deriveClickbaitFallbackAnswer, extractArticleContextFromHtml, sanitizeClickbaitAnswer } from "../lib/clickbait"
+import {
+  deriveClickbaitFallbackAnswer,
+  extractArticleContextFromHtml,
+  mergeClickbaitItemsForEdition,
+  sanitizeClickbaitAnswer,
+} from "../lib/clickbait"
 import type { RSSItem } from "../lib/types"
 
 function makeItem(overrides: Partial<RSSItem>): RSSItem {
@@ -11,6 +16,17 @@ function makeItem(overrides: Partial<RSSItem>): RSSItem {
     link: overrides.link || "https://example.com",
     pubDate: overrides.pubDate || "2026-03-24T10:00:00.000Z",
     imageUrl: overrides.imageUrl,
+  }
+}
+
+function makeClickbaitItem(id: string, title: string, answer: string, rankingScore: number) {
+  return {
+    id,
+    title,
+    answer,
+    source: "Fuente",
+    url: `https://example.com/${id}`,
+    rankingScore,
   }
 }
 
@@ -228,5 +244,61 @@ describe("clickbait answer sanitizing", () => {
         "Cuáles son las marcas emblemáticas de leche, queso y yogurt que quebraron o están colapsando"
       )
     ).toBe("Lácteos Verónica, SanCor, Luz Azul, Sudamericana Lácteos, Saputo")
+  })
+})
+
+describe("clickbait edition backfill", () => {
+  it("fills today's edition with strong items from previous days until reaching six cards", () => {
+    const todayItems = [
+      makeClickbaitItem(
+        "today-1",
+        "Cuáles son las ubicaciones gratis para ver a Colapinto en el Road Show de Buenos Aires",
+        "Palermo",
+        100
+      ),
+    ]
+    const previousItems = [
+      makeClickbaitItem(
+        "prev-1",
+        "Cuáles son las marcas emblemáticas de leche, queso y yogurt que quebraron o están colapsando",
+        "Lácteos Verónica, SanCor",
+        90
+      ),
+      makeClickbaitItem(
+        "prev-2",
+        "Quién será el reemplazante de Marchesín en Boca",
+        "Leandro Brey",
+        80
+      ),
+      makeClickbaitItem(
+        "prev-3",
+        "Dónde jugará Argentina su próximo partido",
+        "en la Bombonera",
+        70
+      ),
+      makeClickbaitItem(
+        "prev-4",
+        "A cuánto cotiza el dólar blue hoy",
+        "$1.425",
+        60
+      ),
+      makeClickbaitItem(
+        "prev-5",
+        "Hasta cuándo sigue la ola de calor en Buenos Aires",
+        "hasta el jueves",
+        50
+      ),
+      makeClickbaitItem(
+        "prev-bad",
+        "Cuáles son las escalas y las cuotas del monotributo de ARCA en mayo 2026",
+        "Nueva, Ganancias, ARCA, Cuáles, Las, Controlar",
+        95
+      ),
+    ]
+
+    const merged = mergeClickbaitItemsForEdition(todayItems, previousItems)
+
+    expect(merged).toHaveLength(6)
+    expect(merged.map(item => item.id)).toEqual(["today-1", "prev-1", "prev-2", "prev-3", "prev-4", "prev-5"])
   })
 })

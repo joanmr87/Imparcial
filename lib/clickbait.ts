@@ -46,6 +46,7 @@ const clickbaitSelectionSchema = z.object({
 const CLICKBAIT_SNAPSHOT_TYPE = "clickbait"
 const CLICKBAIT_SNAPSHOT_SLOT = "daily"
 const CLICKBAIT_TARGET_ITEMS = 6
+const CLICKBAIT_BACKFILL_DAYS = 3
 
 function isMissingIncrementalCacheError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("incrementalCache missing")
@@ -881,6 +882,39 @@ function isRenderableClickbaitItem(item: ClickbaitBusterItem): boolean {
   )
 }
 
+function shiftDateKey(dateKey: string, offsetDays: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  date.setUTCDate(date.getUTCDate() + offsetDays)
+  return date.toISOString().slice(0, 10)
+}
+
+async function getHistoricalClickbaitItems(
+  snapshotDate: string,
+  daysBack = CLICKBAIT_BACKFILL_DAYS
+): Promise<ClickbaitBusterItem[]> {
+  const historicalItems: ClickbaitBusterItem[] = []
+
+  for (let offset = 1; offset <= daysBack; offset += 1) {
+    const candidateDate = shiftDateKey(snapshotDate, -offset)
+    const snapshot = await safeGetSiteSnapshot<ClickbaitSnapshotPayload>(
+      CLICKBAIT_SNAPSHOT_TYPE,
+      candidateDate,
+      CLICKBAIT_SNAPSHOT_SLOT
+    )
+
+    if (!snapshot?.payload.items?.length) continue
+
+    historicalItems.push(...snapshot.payload.items.filter(isRenderableClickbaitItem))
+
+    if (historicalItems.length >= CLICKBAIT_TARGET_ITEMS) {
+      break
+    }
+  }
+
+  return historicalItems
+}
+
 function clickbaitRankingScore(item: ClickbaitBusterItem): number {
   return item.rankingScore || 0
 }
@@ -898,7 +932,7 @@ function dedupeClickbaitItems(items: ClickbaitBusterItem[]): ClickbaitBusterItem
   return [...merged.values()]
 }
 
-function mergeClickbaitItems(
+export function mergeClickbaitItemsForEdition(
   freshItems: ClickbaitBusterItem[],
   previousItems: ClickbaitBusterItem[],
   limit = CLICKBAIT_TARGET_ITEMS
@@ -933,15 +967,9 @@ export async function refreshDailyClickbaitEdition(options: {
     }
   }
 
-  const latestSnapshot = await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
-    CLICKBAIT_SNAPSHOT_TYPE,
-    CLICKBAIT_SNAPSHOT_SLOT
-  )
-  const previousItems = latestSnapshot?.snapshotDate === snapshotDate
-    ? []
-    : (latestSnapshot?.payload.items || [])
+  const previousItems = await getHistoricalClickbaitItems(snapshotDate)
   const freshItems = await buildFreshClickbaitBusters()
-  const items = mergeClickbaitItems(freshItems, previousItems)
+  const items = mergeClickbaitItemsForEdition(freshItems, previousItems)
   const payload: ClickbaitSnapshotPayload = {
     generatedAt: new Date().toISOString(),
     snapshotDate,
@@ -977,17 +1005,11 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
     return todaySnapshot.payload
   }
 
-  const latestSnapshot = await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
-    CLICKBAIT_SNAPSHOT_TYPE,
-    CLICKBAIT_SNAPSHOT_SLOT
-  )
-  const previousItems = latestSnapshot?.snapshotDate === snapshotDate
-    ? []
-    : (latestSnapshot?.payload.items || []).filter(isRenderableClickbaitItem)
+  const previousItems = await getHistoricalClickbaitItems(snapshotDate)
 
   if (todaySnapshot) {
     const emergencyItems = await getEmergencyClickbaitBusters()
-    const repairedItems = mergeClickbaitItems(
+    const repairedItems = mergeClickbaitItemsForEdition(
       [...todayItems, ...emergencyItems],
       previousItems
     )
@@ -1008,8 +1030,21 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
     return storedSnapshot?.payload || repairedPayload
   }
 
+  const latestSnapshot = await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
+    CLICKBAIT_SNAPSHOT_TYPE,
+    CLICKBAIT_SNAPSHOT_SLOT
+  )
+
   if (latestSnapshot?.payload.items.length) {
-    return latestSnapshot.payload
+    const latestItems = latestSnapshot.payload.items.filter(isRenderableClickbaitItem)
+    const fallbackItems = latestSnapshot.snapshotDate === snapshotDate
+      ? previousItems
+      : await getHistoricalClickbaitItems(latestSnapshot.snapshotDate)
+
+    return {
+      ...latestSnapshot.payload,
+      items: mergeClickbaitItemsForEdition(latestItems, fallbackItems),
+    }
   }
 
   const emergencyItems = await getEmergencyClickbaitBusters()
