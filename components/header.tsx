@@ -1,9 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Menu, X } from "lucide-react"
 import { EditorialPromise } from "@/components/editorial-promise"
+import { formatArgentinaLongDate } from "@/lib/date-format"
 
 const navItems = [
   { label: "Politica", href: "/seccion/politica" },
@@ -19,6 +20,18 @@ interface HeaderProps {
 
 export function Header({ dateString }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [currentDateString, setCurrentDateString] = useState(dateString)
+
+  useEffect(() => {
+    const updateDate = () => {
+      setCurrentDateString(formatArgentinaLongDate())
+    }
+
+    updateDate()
+    const intervalId = window.setInterval(updateDate, 1000 * 60 * 30)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   return (
     <header className="border-b border-border bg-background/90 backdrop-blur-sm">
@@ -26,7 +39,7 @@ export function Header({ dateString }: HeaderProps) {
         {/* Date bar */}
         <div className="border-b border-border py-2">
           <p className="text-center text-xs tracking-widest text-muted-foreground uppercase">
-            {dateString}
+            {currentDateString}
           </p>
         </div>
 
