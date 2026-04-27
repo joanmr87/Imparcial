@@ -1,4 +1,4 @@
-import Image from "next/image"
+import { ClickbaitCardImage } from "@/components/clickbait-card-image"
 import type { ClickbaitBusterItem } from "@/lib/clickbait"
 
 interface ClickbaitBustersProps {
@@ -51,18 +51,11 @@ export function ClickbaitBusters({ items, generatedAt }: ClickbaitBustersProps) 
             key={item.id}
             className="overflow-hidden rounded-[1.5rem] border border-stone-300 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.06)]"
           >
-            {item.imageUrl && (
-              <div className="aspect-[16/9] overflow-hidden bg-stone-200">
-                <Image
-                  src={item.imageUrl}
-                  alt={item.title}
-                  width={1200}
-                  height={675}
-                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            )}
+            <ClickbaitCardImage
+              src={item.imageUrl}
+              alt={item.title}
+              source={item.source}
+            />
 
             <div className="p-4">
               <div className="flex items-center justify-between gap-3">
