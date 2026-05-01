@@ -129,6 +129,25 @@ describe("published articles selection", () => {
     expect(result.article?.slug).toBe("slug-visible-en-portada")
   })
 
+  it("resolves a published note when the title part of the slug changed but the fingerprint stayed the same", async () => {
+    getDatabaseArticleBySlug.mockResolvedValue(null)
+    getDatabaseArticles.mockResolvedValue([
+      makeArticle({
+        id: "db-fingerprint-1",
+        slug: "nuevo-titulo-de-la-misma-nota-4ea52f37",
+        title: "Nota con nuevo título",
+        category: "Deportes",
+      }),
+    ])
+    getGeneratedEditorialStock.mockResolvedValue([])
+
+    const { findPublishedArticleBySlug } = await import("../lib/articles")
+    const result = await findPublishedArticleBySlug("viejo-titulo-visible-en-portada-4ea52f37")
+
+    expect(result.source).toBe("database")
+    expect(result.article?.slug).toBe("nuevo-titulo-de-la-misma-nota-4ea52f37")
+  })
+
   it("supplements a sparse or stale persisted edition with fresher generated coverage", async () => {
     getDatabaseArticles.mockResolvedValue([
       makeArticle({

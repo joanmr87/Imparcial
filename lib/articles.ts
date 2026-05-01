@@ -13,6 +13,7 @@ const MIN_HOMEPAGE_CATEGORIES = 4
 const MAX_STALE_DATABASE_FILL = 4
 const PUBLISHED_ARTICLE_SNAPSHOT_TYPE = "published-article"
 const volatilePublishedArticleArchive = new Map<string, ImpartialArticle>()
+const ARTICLE_SLUG_FINGERPRINT_PATTERN = /-([a-f0-9]{8})$/i
 
 function dedupeArticles(articles: ImpartialArticle[]): ImpartialArticle[] {
   const seen = new Set<string>()
@@ -23,6 +24,25 @@ function dedupeArticles(articles: ImpartialArticle[]): ImpartialArticle[] {
     seen.add(key)
     return true
   })
+}
+
+function extractSlugFingerprint(slug?: string | null): string | null {
+  if (!slug) return null
+  const match = slug.match(ARTICLE_SLUG_FINGERPRINT_PATTERN)
+  return match?.[1]?.toLowerCase() || null
+}
+
+function articleMatchesRequestedSlug(article: ImpartialArticle, requestedSlug: string): boolean {
+  if (article.slug === requestedSlug) return true
+
+  const requestedFingerprint = extractSlugFingerprint(requestedSlug)
+  if (!requestedFingerprint) return false
+
+  return extractSlugFingerprint(article.slug) === requestedFingerprint
+}
+
+function findArticleByRequestedSlug(articles: ImpartialArticle[], requestedSlug: string): ImpartialArticle | null {
+  return articles.find(article => articleMatchesRequestedSlug(article, requestedSlug)) || null
 }
 
 function distinctCategories(articles: ImpartialArticle[]): number {
@@ -240,7 +260,7 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
 }> {
   try {
     const published = await listPublishedArticles()
-    const publishedArticle = published.articles.find(article => article.slug === slug)
+    const publishedArticle = findArticleByRequestedSlug(published.articles, slug)
     if (publishedArticle) {
       rememberPublishedArticles([publishedArticle])
       return { article: publishedArticle, source: published.source }
@@ -250,6 +270,7 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
   }
 
   const archivedArticle = volatilePublishedArticleArchive.get(slug)
+    || findArticleByRequestedSlug([...volatilePublishedArticleArchive.values()], slug)
   if (archivedArticle) {
     return { article: archivedArticle, source: "generated" }
   }
@@ -278,10 +299,22 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
   }
 
   try {
+    const databaseArticles = (await getDatabaseArticles()).filter(isArticleCoherent)
+    const matchedDatabaseArticle = findArticleByRequestedSlug(databaseArticles, slug)
+    if (matchedDatabaseArticle) {
+      rememberPublishedArticles([matchedDatabaseArticle])
+      return { article: matchedDatabaseArticle, source: "database" }
+    }
+  } catch {
+    // Fall through to generated content.
+  }
+
+  try {
     const generatedArticles = await getGeneratedEditorialStock()
-    const generatedArticle = generatedArticles
-      .filter(isArticleCoherent)
-      .find(article => article.slug === slug)
+    const generatedArticle = findArticleByRequestedSlug(
+      generatedArticles.filter(isArticleCoherent),
+      slug
+    )
     if (generatedArticle) {
       rememberPublishedArticles([generatedArticle])
       return { article: generatedArticle, source: "generated" }
