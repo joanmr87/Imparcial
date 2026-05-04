@@ -64,7 +64,7 @@ describe("clickbait fallback answers", () => {
       description: "La selección volvería a presentarse en la Bombonera si se confirma la logística prevista por AFA.",
     })
 
-    expect(deriveClickbaitFallbackAnswer(item)).toBe("en la Bombonera")
+    expect(deriveClickbaitFallbackAnswer(item)).toBe("En la Bombonera")
   })
 
   it("does not guess names when the title is not a direct 'quién' question", () => {
@@ -244,6 +244,33 @@ describe("clickbait answer sanitizing", () => {
         "Cuáles son las marcas emblemáticas de leche, queso y yogurt que quebraron o están colapsando"
       )
     ).toBe("Lácteos Verónica, SanCor, Luz Azul, Sudamericana Lácteos, Saputo")
+  })
+
+  it("capitalizes diagnosis-style answers and makes them read better against consequence titles", () => {
+    expect(
+      sanitizeClickbaitAnswer(
+        "esguince leve de tobillo izquierdo",
+        "Preocupación en la Selección argentina por la lesión de Julián Álvarez: ¿se pierde la Champions League y el Mundial 2026?"
+      )
+    ).toBe("Tiene un esguince leve de tobillo izquierdo")
+  })
+
+  it("rewrites watch-list answers so they explain the change mentioned by the title", () => {
+    expect(
+      sanitizeClickbaitAnswer(
+        "Priority Watch List a Watch List",
+        "Estados Unidos sacó a la Argentina de la \"lista negra\" de propiedad intelectual"
+      )
+    ).toBe("Salió de la Priority Watch List y quedó en Watch List")
+  })
+
+  it("capitalizes short text answers that start in lowercase", () => {
+    expect(
+      sanitizeClickbaitAnswer(
+        "esguince leve",
+        "¿Qué lesión tiene?"
+      )
+    ).toBe("Esguince leve")
   })
 })
 

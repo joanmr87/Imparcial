@@ -568,9 +568,61 @@ function isValidClickbaitAnswer(answer: string, title?: string): boolean {
   return true
 }
 
+function capitalizeDisplayAnswer(answer: string): string {
+  const letterIndex = answer.search(/[A-Za-zÁÉÍÓÚÑáéíóúñ]/)
+  if (letterIndex === -1) return answer
+
+  return answer.slice(0, letterIndex)
+    + answer.charAt(letterIndex).toUpperCase()
+    + answer.slice(letterIndex + 1)
+}
+
+function rewriteDiagnosisAnswer(answer: string): string {
+  const clean = answer.trim()
+
+  if (/^(un|una)\b/i.test(clean)) {
+    return `Tiene ${clean}`
+  }
+
+  if (/^(esguince|desgarro|hematoma|moreton)\b/i.test(clean)) {
+    return `Tiene un ${clean}`
+  }
+
+  if (/^(distension|distensión|lesion|lesión|molestia|contractura|rotura|fractura)\b/i.test(clean)) {
+    return `Tiene ${clean}`
+  }
+
+  return clean
+}
+
+function rewriteTitleAwareAnswer(answer: string, title?: string): string {
+  const clean = answer.trim().replace(/\s+/g, " ")
+  if (!title) return capitalizeDisplayAnswer(clean)
+
+  const normalizedTitle = normalizeText(title)
+  const normalizedAnswer = normalizeText(clean)
+
+  if (
+    /\blista negra\b/.test(normalizedTitle)
+    && /\bpriority watch list\b/.test(normalizedAnswer)
+    && /\bwatch list\b/.test(normalizedAnswer)
+  ) {
+    return "Salió de la Priority Watch List y quedó en Watch List"
+  }
+
+  if (
+    /\b(se pierde|se perderia|se perdería|se queda afuera|queda afuera)\b/.test(normalizedTitle)
+    && /^(esguince|distension|distensión|desgarro|fractura|lesion|lesión|molestia|contractura|rotura)\b/i.test(clean)
+  ) {
+    return capitalizeDisplayAnswer(rewriteDiagnosisAnswer(clean))
+  }
+
+  return capitalizeDisplayAnswer(clean)
+}
+
 export function sanitizeClickbaitAnswer(answer: string | null, title?: string): string | null {
   if (!answer) return null
-  const clean = answer.trim()
+  const clean = rewriteTitleAwareAnswer(answer, title)
   return isValidClickbaitAnswer(clean, title) ? clean : null
 }
 
@@ -774,10 +826,13 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
           "Si es un pronostico, devolvelo tipo 'hasta 39°' o 'llueve el jueves'.",
           "Si es una cifra estimada, devolvela tipo 'aprox. 4%'.",
           "Si es una convocatoria o citacion, devolve solo los nombres.",
+          "Si el titulo pregunta por una consecuencia, una baja o un cambio de estado, la respuesta tiene que resolver eso de forma explicita y no quedarse solo en un dato suelto.",
+          "Si aparece un termino en ingles, agregale el contexto necesario para que la respuesta tenga sentido en espanol.",
           "Si el titular oculta una identidad sin preguntar de forma directa, por ejemplo 'se lesionó un jugador' o 'una cantante se irá del país', devolvé el nombre propio.",
           "Priorizá temas de Argentina o de impacto directo para lectores argentinos. Dejá afuera notas extranjeras sin relevancia local clara.",
           "No inventes. Si el contexto no permite una respuesta clara, include=false.",
           "No uses frases vagas como 'No lo dice claro', 'depende' o 'hay que leer la nota'.",
+          "Empeza siempre la respuesta con mayuscula.",
           "Escribi en espanol de Argentina. La respuesta tiene que poder entrar en una card.",
           "Ejemplos de criterio: 'Cuales son los 10 autos...' => lista de autos. 'La citacion...' => nombres convocados. 'Hasta que punto podria llegar la inflacion...' => aprox. con numero. 'Hasta cuando sigue la ola de calor...' => temperatura o dia clave. 'Sorpresa en musica argentina...' => nombre propio.",
           "Da importanceScore segun interes general para una audiencia argentina, clickbaitScore segun cuan cebado este el titular y confidenceScore segun cuan bien respaldada queda la respuesta en el contexto.",
