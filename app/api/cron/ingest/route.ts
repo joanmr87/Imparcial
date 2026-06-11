@@ -11,7 +11,9 @@ function isAuthorized(request: Request) {
   return authHeader === `Bearer ${expectedSecret}`
 }
 
-export const maxDuration = 60
+// Generating a full edition with AI takes well over 60s; Fluid Compute
+// allows up to 300s on every plan.
+export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
