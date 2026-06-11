@@ -1,0 +1,25 @@
+# Vercel Hobby solo permite crons diarios, asi que la frecuencia real
+# de actualizacion sale de este workflow: pega al endpoint de ingesta
+# cada 30 minutos y deja los crons de Vercel como respaldo diario.
+name: Refresh edition
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call ingest endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          response=$(curl -s -w "\n%{http_code}" --max-time 280 \
+            ${CRON_SECRET:+-H "Authorization: Bearer $CRON_SECRET"} \
+            "https://v0-ai-news-verification-ten.vercel.app/api/cron/ingest")
+          status=$(echo "$response" | tail -1)
+          echo "HTTP $status"
+          echo "$response" | head -c 600
+          [ "$status" = "200" ]

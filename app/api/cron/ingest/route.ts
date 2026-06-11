@@ -23,7 +23,9 @@ export async function GET(request: Request) {
     const [result, clickbaitEdition] = await Promise.all([
       generatePipelineRun({
         minSources: 2,
-        limit: 18,
+        // 12 notas por corrida entran holgadas en los 60s de maxDuration;
+        // la frecuencia del cron compensa el volumen.
+        limit: 12,
         generateArticles: true,
         persist: true,
       }),
