@@ -9,26 +9,74 @@ import { SiteFooter } from "@/components/site-footer"
 import { getPublishedClickbaitEdition } from "@/lib/clickbait"
 import { formatArgentinaLongDate } from "@/lib/date-format"
 import { getHomepageEdition } from "@/lib/homepage"
+import { categoryDisplayLabel } from "@/lib/news-categories"
+import type { ImpartialArticle } from "@/lib/types"
 
 interface HomepageViewProps {
   activeSection?: string | null
   enableLegacySectionRedirect?: boolean
 }
 
+function latestArticleSignalLabel(articles: ImpartialArticle[]): string | null {
+  const latestTimestamp = articles
+    .flatMap(article => [
+      article.updatedAt,
+      article.createdAt,
+      ...article.sources.map(source => source.publishedAt),
+    ])
+    .map(value => new Date(value).getTime())
+    .filter(value => Number.isFinite(value))
+    .sort((left, right) => right - left)[0]
+
+  if (!latestTimestamp) return null
+
+  return new Date(latestTimestamp).toLocaleString("es-AR", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Argentina/Buenos_Aires",
+  })
+}
+
+function distinctSourceCount(articles: ImpartialArticle[]): number {
+  return new Set(
+    articles.flatMap(article => article.sources.map(source => source.name))
+  ).size
+}
+
+const manifestoPillars = [
+  {
+    title: "Sin sesgos",
+    body: "Ninguna nota nace de un solo medio: cada síntesis cruza varias coberturas y separa los hechos del ruido editorial.",
+  },
+  {
+    title: "Trazable",
+    body: "Cada nota muestra de qué diarios salió la información, qué está confirmado y qué sigue en disputa.",
+  },
+  {
+    title: "Te devuelve tiempo",
+    body: "Leés una versión clara y corta en lugar de abrir cinco diarios para entender el mismo hecho.",
+  },
+]
+
 export async function HomepageView({
   activeSection,
   enableLegacySectionRedirect = false,
 }: HomepageViewProps) {
   const dateString = formatArgentinaLongDate()
-  const [{ articles, sections, activeSectionLabel }, clickbaitEdition] = await Promise.all([
+  const [{ articles, sections, activeSectionLabel, source, warning }, clickbaitEdition] = await Promise.all([
     getHomepageEdition(activeSection),
     getPublishedClickbaitEdition(),
   ])
 
   const featured = articles[0]
   const secondary = articles.slice(1, 3)
-  const sidebar = articles.slice(3, 8)
+  const sidebar = articles.slice(3, 12)
   const remainingSections = activeSection ? [] : sections
+  const latestSignal = latestArticleSignalLabel(articles)
+  const showEditionWarning = Boolean(warning) || source !== "database"
+  const sourceCount = distinctSourceCount(articles)
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(214,203,184,0.22),_transparent_38%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(250,247,241,0.96))]">
@@ -49,10 +97,10 @@ export async function HomepageView({
             <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="font-serif text-2xl font-semibold text-foreground">
-                  {activeSectionLabel || sections[0]?.label || "Seccion"}
+                  {categoryDisplayLabel(activeSectionLabel || sections[0]?.label || "Sección")}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Una edicion enfocada en esa agenda, armada solo con sintesis construidas desde varias coberturas.
+                  Una edición enfocada en esa agenda, armada solo con síntesis construidas desde varias coberturas.
                 </p>
               </div>
               <Link
@@ -67,25 +115,66 @@ export async function HomepageView({
         )}
 
         {!activeSection && (
-          <section className="mb-8 rounded-[1.5rem] border border-border bg-card/70 px-5 py-5 shadow-[0_12px_34px_rgba(28,28,28,0.04)]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="max-w-3xl">
+          <section className="mb-10 rounded-[2rem] border border-border bg-card/70 px-6 py-7 shadow-[0_12px_34px_rgba(28,28,28,0.04)] md:px-8">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-2xl">
                 <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-                  Una portada para entender rapido
+                  Un diario sin sesgos
                 </p>
-                <p className="mt-2 text-sm leading-relaxed text-foreground/80 md:text-base">
-                  Cada sintesis junta varias coberturas sobre el mismo hecho, separa coincidencias de ruido editorial
-                  y te devuelve una version mas clara para leer sin abrir cinco diarios.
+                <h2 className="mt-2 font-serif text-2xl font-semibold leading-snug text-foreground md:text-3xl text-balance">
+                  Leemos todos los diarios para que vos leas la noticia
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-foreground/80 md:text-base">
+                  Cada síntesis junta varias coberturas sobre el mismo hecho, separa coincidencias de
+                  ruido editorial y te devuelve una versión más clara, sin opinión y con las fuentes a la vista.
                 </p>
               </div>
-              <Link
-                href="/metodologia"
-                prefetch={false}
-                className="inline-flex rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
-              >
-                Ver metodologia
-              </Link>
+              <div className="flex flex-col items-start gap-3 md:items-end">
+                {articles.length > 0 && (
+                  <p className="text-xs leading-relaxed text-muted-foreground md:text-right">
+                    Edición actual: {articles.length} síntesis
+                    {sourceCount > 1 ? ` · ${sourceCount} medios cruzados` : ""}
+                  </p>
+                )}
+                <Link
+                  href="/metodologia"
+                  prefetch={false}
+                  className="inline-flex rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+                >
+                  Ver metodología
+                </Link>
+              </div>
             </div>
+
+            <div className="mt-6 grid gap-4 border-t border-border/70 pt-6 md:grid-cols-3">
+              {manifestoPillars.map(pillar => (
+                <div key={pillar.title}>
+                  <p className="text-sm font-semibold text-foreground">{pillar.title}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground md:text-sm">
+                    {pillar.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {showEditionWarning && (
+          <section className="mb-8 rounded-[1.5rem] border border-amber-300/70 bg-amber-50 px-5 py-4 text-amber-950 shadow-[0_10px_30px_rgba(120,53,15,0.08)]">
+            <p className="text-xs tracking-[0.2em] uppercase text-amber-900/75">
+              Edición en modo respaldo
+            </p>
+            <h2 className="mt-2 font-serif text-2xl font-semibold">
+              La portada no está saliendo de la edición persistida más reciente
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-amber-950/85 md:text-base">
+              {warning || "Se muestran síntesis armadas en tiempo real como respaldo mientras se recompone la publicación automática."}
+            </p>
+            {latestSignal && (
+              <p className="mt-3 text-xs text-amber-900/75">
+                Última señal editorial detectada: {latestSignal}
+              </p>
+            )}
           </section>
         )}
 
@@ -96,7 +185,7 @@ export async function HomepageView({
                 Titulares principales
               </p>
               <h2 className="mt-2 font-serif text-2xl font-semibold text-foreground md:text-3xl">
-                Lo mas importante de la edicion
+                Lo más importante de la edición
               </h2>
             </div>
           </div>
@@ -113,10 +202,10 @@ export async function HomepageView({
           ) : activeSection ? (
             <section className="rounded-[1.5rem] border border-border bg-card/30 px-6 py-8">
               <p className="text-xs tracking-widest text-muted-foreground uppercase">
-                Seccion en actualizacion
+                Sección en actualización
               </p>
               <h3 className="mt-3 font-serif text-2xl font-semibold text-foreground">
-                {activeSectionLabel || "Esta sección"} todavía no tiene cruces suficientes entre medios
+                {categoryDisplayLabel(activeSectionLabel || "Esta sección")} todavía no tiene cruces suficientes entre medios
               </h3>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                 El diario publica esta vista solo cuando encuentra varias coberturas sobre un mismo tema. En cuanto entren coincidencias reales, la sección se completa sola.
@@ -135,10 +224,10 @@ export async function HomepageView({
             <div className="mb-6 flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-                  Edicion del momento
+                  Edición del momento
                 </p>
                 <h2 className="mt-2 font-serif text-2xl font-semibold text-foreground md:text-3xl">
-                  Mas sintesis para seguir leyendo
+                  Más síntesis para seguir leyendo
                 </h2>
               </div>
             </div>
@@ -159,24 +248,24 @@ export async function HomepageView({
           <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
             <div>
               <p className="text-xs tracking-widest text-muted-foreground uppercase">
-                Como funciona
+                Cómo funciona
               </p>
               <h2 className="mt-3 font-serif text-3xl font-semibold text-foreground">
-                Un diario que no te pide fe: te muestra de donde sale cada sintesis
+                Un diario que no te pide fe: te muestra de dónde sale cada síntesis
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
-                Imparcial no reemplaza a los medios: los lee en conjunto, detecta cuando hablan del mismo hecho
-                y publica una version mas ordenada, mas corta y menos arrastrada por una sola linea editorial.
+                Imparcial no reemplaza a los medios: los lee en conjunto, detecta cuándo hablan del mismo hecho
+                y publica una versión más ordenada, más corta y menos arrastrada por una sola línea editorial.
               </p>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
-                La promesa no es una verdad magica. Es algo mas util: mostrar coincidencias, marcar diferencias
-                y dejarte ver rapido que esta mas firme y que todavia esta en disputa.
+                La promesa no es una verdad mágica. Es algo más útil: mostrar coincidencias, marcar diferencias
+                y dejarte ver rápido qué está más firme y qué todavía está en disputa.
               </p>
             </div>
 
             <div className="rounded-[1.5rem] border border-border bg-background/70 p-5">
               <p className="text-xs tracking-widest text-muted-foreground uppercase">
-                Metodo editorial
+                Método editorial
               </p>
               <ol className="mt-4 space-y-3 text-sm leading-relaxed text-foreground/80">
                 <li>1. Leemos varios diarios varias veces por día.</li>
@@ -189,7 +278,7 @@ export async function HomepageView({
                 prefetch={false}
                 className="mt-5 inline-flex rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
               >
-                Ver la metodologia completa
+                Ver la metodología completa
               </Link>
             </div>
           </div>

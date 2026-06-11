@@ -4,15 +4,16 @@ import { inferCategoryFromItem } from "./news-categories"
 import { clusterNews, fetchAllFeeds } from "./rss-fetcher"
 import type { ImpartialArticle, NewsCluster } from "./types"
 
-const GENERATED_STOCK_LIMIT = 18
+const GENERATED_STOCK_LIMIT = 28
 const FRESH_CLUSTER_WINDOW_HOURS = 36
 const RECENT_CLUSTER_WINDOW_HOURS = 72
 const MAX_CLUSTER_WINDOW_HOURS = 120
+const GENERATED_STOCK_REVALIDATE_SECONDS = 15 * 60
 const STOCK_CATEGORY_TARGETS = {
-  Politica: 6,
-  Economia: 4,
-  Sociedad: 3,
-  Deportes: 5,
+  Politica: 8,
+  Economia: 6,
+  Sociedad: 6,
+  Deportes: 6,
 } as const
 
 function inferClusterCategory(cluster: NewsCluster): string {
@@ -106,5 +107,5 @@ async function buildGeneratedEditorialStock(): Promise<ImpartialArticle[]> {
 export const getGeneratedEditorialStock = unstable_cache(
   buildGeneratedEditorialStock,
   ["generated-editorial-stock-v6"],
-  { revalidate: 60 * 60 * 12 }
+  { revalidate: GENERATED_STOCK_REVALIDATE_SECONDS }
 )

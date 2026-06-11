@@ -8,9 +8,9 @@ import type { ImpartialArticle } from "./types"
 
 const FRESH_SIGNAL_WINDOW_HOURS = 36
 const RECENT_SIGNAL_WINDOW_HOURS = 72
-const MIN_HOMEPAGE_ARTICLES = 12
+const MIN_HOMEPAGE_ARTICLES = 16
 const MIN_HOMEPAGE_CATEGORIES = 4
-const MAX_STALE_DATABASE_FILL = 4
+const MAX_STALE_DATABASE_FILL = 6
 const PUBLISHED_ARTICLE_SNAPSHOT_TYPE = "published-article"
 const volatilePublishedArticleArchive = new Map<string, ImpartialArticle>()
 const ARTICLE_SLUG_FINGERPRINT_PATTERN = /-([a-f0-9]{8})$/i
@@ -108,7 +108,7 @@ function selectPublishedDatabaseArticles(articles: ImpartialArticle[]): {
 function mergePublishedArticles(
   leadingArticles: ImpartialArticle[],
   trailingArticles: ImpartialArticle[],
-  limit = 18
+  limit = 28
 ): ImpartialArticle[] {
   return sortPublishedArticles(dedupeArticles([...leadingArticles, ...trailingArticles])).slice(0, limit)
 }

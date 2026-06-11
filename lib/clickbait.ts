@@ -46,7 +46,8 @@ const clickbaitSelectionSchema = z.object({
 const CLICKBAIT_SNAPSHOT_TYPE = "clickbait"
 const CLICKBAIT_SNAPSHOT_SLOT = "daily"
 const CLICKBAIT_TARGET_ITEMS = 6
-const CLICKBAIT_BACKFILL_DAYS = 3
+const CLICKBAIT_MAX_ITEMS = 9
+const CLICKBAIT_BACKFILL_DAYS = 7
 
 function isMissingIncrementalCacheError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("incrementalCache missing")
@@ -875,7 +876,7 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
 
       const rankedByAi = selectedItems
         .sort((left, right) => right.totalScore - left.totalScore)
-        .slice(0, CLICKBAIT_TARGET_ITEMS)
+        .slice(0, CLICKBAIT_MAX_ITEMS)
         .map(({ totalScore, ...item }) => ({ ...item, rankingScore: totalScore }))
 
       if (rankedByAi.length >= CLICKBAIT_TARGET_ITEMS) return rankedByAi
@@ -887,10 +888,10 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
         for (const fallbackItem of fallbackItems) {
           if (merged.some(item => item.id === fallbackItem.id)) continue
           merged.push(fallbackItem)
-          if (merged.length >= CLICKBAIT_TARGET_ITEMS) break
+          if (merged.length >= CLICKBAIT_MAX_ITEMS) break
         }
 
-        if (merged.length > 0) return merged.slice(0, CLICKBAIT_TARGET_ITEMS)
+        if (merged.length > 0) return merged.slice(0, CLICKBAIT_MAX_ITEMS)
       }
     } catch {
       // Fallback below.
@@ -921,7 +922,7 @@ function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterIt
     })
     .filter((item): item is ClickbaitBusterItem & { heuristicScore: number } => item !== null)
     .sort((left, right) => right.heuristicScore - left.heuristicScore)
-    .slice(0, CLICKBAIT_TARGET_ITEMS)
+    .slice(0, CLICKBAIT_MAX_ITEMS)
     .map(({ heuristicScore: _heuristicScore, ...item }) => item)
 
   return fallbackItems
@@ -962,7 +963,7 @@ async function getHistoricalClickbaitItems(
 
     historicalItems.push(...snapshot.payload.items.filter(isRenderableClickbaitItem))
 
-    if (historicalItems.length >= CLICKBAIT_TARGET_ITEMS) {
+    if (historicalItems.length >= CLICKBAIT_MAX_ITEMS) {
       break
     }
   }
@@ -990,7 +991,7 @@ function dedupeClickbaitItems(items: ClickbaitBusterItem[]): ClickbaitBusterItem
 export function mergeClickbaitItemsForEdition(
   freshItems: ClickbaitBusterItem[],
   previousItems: ClickbaitBusterItem[],
-  limit = CLICKBAIT_TARGET_ITEMS
+  limit = CLICKBAIT_MAX_ITEMS
 ): ClickbaitBusterItem[] {
   const merged = dedupeClickbaitItems([...freshItems, ...previousItems].filter(isRenderableClickbaitItem))
     .sort((left, right) => clickbaitRankingScore(right) - clickbaitRankingScore(left))
@@ -1108,7 +1109,7 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
     snapshotDate,
     freshCount: emergencyItems.length,
     reusedCount: 0,
-    items: emergencyItems.slice(0, CLICKBAIT_TARGET_ITEMS),
+    items: emergencyItems.slice(0, CLICKBAIT_MAX_ITEMS),
   }
 }
 

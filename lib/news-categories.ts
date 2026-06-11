@@ -30,6 +30,20 @@ export function categoryLabelFromSlug(slug: string): string {
   return HOME_SECTION_ORDER.find(section => section.slug === slug)?.label || "Sociedad"
 }
 
+// Internal category keys stay unaccented for matching; this maps them to
+// reader-facing Spanish labels.
+const CATEGORY_DISPLAY_LABELS: Record<string, string> = {
+  Politica: "Política",
+  Economia: "Economía",
+  Sociedad: "Sociedad",
+  Deportes: "Deportes",
+  Internacional: "Internacional",
+}
+
+export function categoryDisplayLabel(label: string): string {
+  return CATEGORY_DISPLAY_LABELS[label] || label
+}
+
 export function inferCategoryFromArticle(article: ImpartialArticle): string {
   const normalized = normalizeText(article.category)
 

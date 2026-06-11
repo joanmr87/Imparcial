@@ -83,7 +83,7 @@ export async function getHomepageEdition(activeSection?: string | null): Promise
   }
 
   if (!sectionFilter) {
-    articles = interleaveSectionArticles(sections, 18)
+    articles = interleaveSectionArticles(sections, 28)
   }
 
   return {
@@ -97,13 +97,13 @@ export async function getHomepageEdition(activeSection?: string | null): Promise
 
 async function buildHomepageBaseEdition(): Promise<HomepageBaseEdition> {
   const published = await listPublishedArticles()
-  const rankedArticles = prioritizeArticleVariety(dedupeSimilarArticles(published.articles), 24)
+  const rankedArticles = prioritizeArticleVariety(dedupeSimilarArticles(published.articles), 36)
   const sections: HomepageSection[] = []
 
   for (const section of HOME_SECTION_ORDER) {
     const categoryArticles = pickDistinctArticles(
       rankedArticles.filter(article => inferCategoryFromArticle(article) === section.label),
-      5,
+      7,
       0.36
     )
 
@@ -113,7 +113,7 @@ async function buildHomepageBaseEdition(): Promise<HomepageBaseEdition> {
       slug: section.slug,
       label: section.label,
       lead: categoryArticles[0],
-      articles: categoryArticles.slice(1, 5),
+      articles: categoryArticles.slice(1, 7),
     })
   }
 

@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { ArticleCard } from "@/components/article-card"
+import { categoryDisplayLabel } from "@/lib/news-categories"
 import type { HomepageSection } from "@/lib/homepage"
 
 interface HomepageSectionProps {
@@ -16,10 +17,10 @@ export function HomepageSectionBlock({ section }: HomepageSectionProps) {
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="text-xs tracking-widest text-muted-foreground uppercase">
-            Seccion
+            Sección
           </p>
           <h2 className="mt-2 font-serif text-3xl font-semibold text-foreground">
-            {section.label}
+            {categoryDisplayLabel(section.label)}
           </h2>
         </div>
         <Link
@@ -27,7 +28,7 @@ export function HomepageSectionBlock({ section }: HomepageSectionProps) {
           prefetch={false}
           className="text-xs tracking-wide text-muted-foreground transition-colors hover:text-foreground"
         >
-          Ver solo {section.label.toLowerCase()}
+          Ver solo {categoryDisplayLabel(section.label).toLowerCase()} →
         </Link>
       </div>
 

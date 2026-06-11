@@ -86,13 +86,17 @@ describe("published articles selection", () => {
       makeArticle({ id: "db-10", title: "Nota persistida 10", category: "Politica" }),
       makeArticle({ id: "db-11", title: "Nota persistida 11", category: "Sociedad" }),
       makeArticle({ id: "db-12", title: "Nota persistida 12", category: "Deportes" }),
+      makeArticle({ id: "db-13", title: "Nota persistida 13", category: "Economia" }),
+      makeArticle({ id: "db-14", title: "Nota persistida 14", category: "Politica" }),
+      makeArticle({ id: "db-15", title: "Nota persistida 15", category: "Sociedad" }),
+      makeArticle({ id: "db-16", title: "Nota persistida 16", category: "Deportes" }),
     ])
 
     const { listPublishedArticles } = await import("../lib/articles")
     const result = await listPublishedArticles()
 
     expect(result.source).toBe("database")
-    expect(result.articles).toHaveLength(12)
+    expect(result.articles).toHaveLength(16)
     expect(getGeneratedEditorialStock).not.toHaveBeenCalled()
   })
 

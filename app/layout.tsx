@@ -15,10 +15,21 @@ const sourceSans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: 'Diario Imparcial - La noticia, sin adjetivos',
-  description: 'Noticias argentinas reescritas sin opinion. Hechos verificados de multiples fuentes con total transparencia.',
-  generator: 'v0.app',
-  keywords: ['noticias', 'argentina', 'imparcial', 'hechos', 'sin opinion', 'transparencia'],
+  title: {
+    default: 'Diario Imparcial — La noticia, sin adjetivos',
+    template: '%s | Diario Imparcial',
+  },
+  description:
+    'Un diario sin sesgos: cada nota cruza varias coberturas de medios argentinos, separa hechos de opinión y muestra sus fuentes. Síntesis claras, trazables y sin clickbait.',
+  keywords: ['noticias', 'argentina', 'imparcial', 'sin sesgos', 'hechos', 'sin opinión', 'transparencia', 'anti clickbait'],
+  openGraph: {
+    title: 'Diario Imparcial — La noticia, sin adjetivos',
+    description:
+      'Un diario sin sesgos: cada nota cruza varias coberturas, separa hechos de opinión y muestra sus fuentes.',
+    type: 'website',
+    locale: 'es_AR',
+    siteName: 'Diario Imparcial',
+  },
   icons: {
     icon: '/icon.svg',
   },

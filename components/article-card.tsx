@@ -1,10 +1,15 @@
 import Image from "next/image"
 import Link from "next/link"
+import { categoryDisplayLabel, inferCategoryFromArticle } from "@/lib/news-categories"
 import type { ImpartialArticle } from "@/lib/types"
 
 interface ArticleCardProps {
   article: ImpartialArticle
   variant?: "featured" | "large" | "medium" | "small" | "minimal"
+}
+
+function categoryKicker(article: ImpartialArticle): string {
+  return categoryDisplayLabel(inferCategoryFromArticle(article))
 }
 
 function sourceTags(article: ImpartialArticle) {
@@ -66,7 +71,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
           <ArticleCardImage article={article} tall priority />
           <div className="px-5 py-5 md:px-6">
             <p className="text-xs tracking-widest text-muted-foreground uppercase">
-              {article.category}
+              {categoryKicker(article)}
             </p>
             <h2 className="mt-2 font-serif text-3xl font-semibold leading-tight text-foreground transition-colors group-hover:text-muted-foreground md:text-4xl lg:text-5xl text-balance">
               {article.title}
@@ -91,7 +96,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
           <ArticleCardImage article={article} />
           <div className="px-4 py-4 md:px-5">
             <p className="text-xs tracking-widest text-muted-foreground uppercase">
-              {article.category}
+              {categoryKicker(article)}
             </p>
             <h3 className="mt-2 font-serif text-2xl font-semibold leading-tight text-foreground transition-colors group-hover:text-muted-foreground md:text-3xl text-balance">
               {article.title}
@@ -114,7 +119,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
       <Link href={`/nota/${article.slug}`} prefetch={false} className="group block">
         <article className="rounded-[1.25rem] border border-border/70 bg-card/70 px-4 py-4 transition-shadow hover:shadow-[0_10px_24px_rgba(28,28,28,0.05)]">
           <p className="text-xs tracking-widest text-muted-foreground uppercase">
-            {article.category}
+            {categoryKicker(article)}
           </p>
           <h3 className="mt-1 font-serif text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-muted-foreground text-balance">
             {article.title}
@@ -136,7 +141,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
       <Link href={`/nota/${article.slug}`} prefetch={false} className="group block">
         <article className="flex items-start gap-3 rounded-[1.15rem] border border-border/70 bg-card/65 px-3.5 py-3.5">
           <span className="font-serif text-2xl font-light text-muted-foreground/50">
-            {article.category.charAt(0)}
+            {categoryKicker(article).charAt(0)}
           </span>
           <div>
             <h3 className="font-serif text-base font-medium leading-snug text-foreground transition-colors group-hover:text-muted-foreground text-balance">
@@ -156,7 +161,7 @@ export function ArticleCard({ article, variant = "medium" }: ArticleCardProps) {
     <Link href={`/nota/${article.slug}`} prefetch={false} className="group block">
       <article className="rounded-[1.35rem] border border-border/70 bg-card/75 px-4 py-4 transition-shadow hover:shadow-[0_12px_28px_rgba(28,28,28,0.05)]">
         <p className="text-xs tracking-widest text-muted-foreground uppercase">
-          {article.category}
+          {categoryKicker(article)}
         </p>
         <h3 className="mt-2 font-serif text-xl font-semibold leading-snug text-foreground transition-colors group-hover:text-muted-foreground md:text-2xl text-balance">
           {article.title}

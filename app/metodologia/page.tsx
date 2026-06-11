@@ -44,7 +44,7 @@ export default function MethodologyPage() {
       <main className="mx-auto max-w-5xl px-4 py-10">
         <section className="max-w-3xl">
           <p className="text-xs tracking-widest text-muted-foreground uppercase">
-            Que es El Imparcial
+            Qué es Diario Imparcial
           </p>
           <h1 className="mt-3 font-serif text-4xl font-semibold text-foreground md:text-5xl">
             Un diario que no te pide fe: te muestra cómo llegó a cada nota
@@ -69,7 +69,7 @@ export default function MethodologyPage() {
         <section className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
           <div>
             <h2 className="font-serif text-2xl font-semibold text-foreground">
-              Como funciona, sin tecnicismos
+              Cómo funciona, sin tecnicismos
             </h2>
             <div className="mt-6 space-y-6">
               {steps.map(step => (
