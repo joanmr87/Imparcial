@@ -11,6 +11,8 @@ import { formatArgentinaLongDate } from "@/lib/date-format"
 import { Separator } from "@/components/ui/separator"
 
 export const revalidate = 1800
+// ISR regeneration may fetch live feeds as fallback; see app/page.tsx.
+export const maxDuration = 60
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>

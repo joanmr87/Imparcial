@@ -7,6 +7,9 @@ import type { ImpartialArticle, NewsCluster, PipelineWarning } from "./types"
 const FRESH_CLUSTER_WINDOW_HOURS = 36
 const RECENT_CLUSTER_WINDOW_HOURS = 72
 const MAX_CLUSTER_WINDOW_HOURS = 120
+// Generating articles sequentially does not fit inside the serverless
+// maxDuration window, so the pipeline works in parallel batches.
+const GENERATION_CONCURRENCY = 6
 
 export interface CollectClustersOptions {
   sourceIds?: string[]
@@ -113,34 +116,53 @@ export async function generatePipelineRun(options: GeneratePipelineOptions = {})
     }
   }
 
-  for (const cluster of collected.clusters) {
-    try {
-      const { article, usage } = await generateImpartialArticle(cluster.topic, cluster.articles, { useAi })
-
-      let persisted = false
-      if (persist && editorialSchema?.ready) {
+  for (let index = 0; index < collected.clusters.length; index += GENERATION_CONCURRENCY) {
+    const batch = collected.clusters.slice(index, index + GENERATION_CONCURRENCY)
+    const batchResults = await Promise.all(
+      batch.map(async cluster => {
         try {
-          await upsertGeneratedArticle(article)
-          persisted = true
-        } catch (error) {
-          warnings.push({
-            code: "persist_failed",
-            message: `No se pudo guardar "${article.title}": ${error instanceof Error ? error.message : "Unknown error"}`,
-          })
-        }
-      }
+          const { article, usage } = await generateImpartialArticle(cluster.topic, cluster.articles, { useAi })
 
-      generated.push({
-        cluster,
-        article,
-        persisted,
-        usage,
+          let persisted = false
+          if (persist && editorialSchema?.ready) {
+            try {
+              await upsertGeneratedArticle(article)
+              persisted = true
+            } catch (error) {
+              warnings.push({
+                code: "persist_failed",
+                message: `No se pudo guardar "${article.title}": ${error instanceof Error ? error.message : "Unknown error"}`,
+              })
+            }
+          }
+
+          return { cluster, article, persisted, usage, error: null }
+        } catch (error) {
+          return {
+            cluster,
+            article: null,
+            persisted: false,
+            usage: undefined,
+            error: error instanceof Error ? error.message : "Unknown generation error",
+          }
+        }
       })
-    } catch (error) {
-      errors.push({
-        clusterId: cluster.id,
-        message: error instanceof Error ? error.message : "Unknown generation error",
-      })
+    )
+
+    for (const result of batchResults) {
+      if (result.article) {
+        generated.push({
+          cluster: result.cluster,
+          article: result.article,
+          persisted: result.persisted,
+          usage: result.usage,
+        })
+      } else {
+        errors.push({
+          clusterId: result.cluster.id,
+          message: result.error || "Unknown generation error",
+        })
+      }
     }
   }
 
