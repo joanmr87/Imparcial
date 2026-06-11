@@ -77,6 +77,15 @@ export async function collectLatestClusters(options: CollectClustersOptions = {}
   }
 }
 
+function formatPersistError(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === "object") {
+    const e = error as Record<string, unknown>
+    return [e.message, e.code, e.details, e.hint].filter(Boolean).join(" | ") || JSON.stringify(error)
+  }
+  return String(error)
+}
+
 export async function generatePipelineRun(options: GeneratePipelineOptions = {}) {
   const {
     generateArticles = true,
@@ -110,6 +119,7 @@ export async function generatePipelineRun(options: GeneratePipelineOptions = {})
   if (!generateArticles) {
     return {
       ...collected,
+      warnings,
       generated,
       errors,
       schema: editorialSchema,
@@ -131,7 +141,7 @@ export async function generatePipelineRun(options: GeneratePipelineOptions = {})
             } catch (error) {
               warnings.push({
                 code: "persist_failed",
-                message: `No se pudo guardar "${article.title}": ${error instanceof Error ? error.message : "Unknown error"}`,
+                message: `No se pudo guardar "${article.title}": ${formatPersistError(error)}`,
               })
             }
           }
@@ -143,7 +153,7 @@ export async function generatePipelineRun(options: GeneratePipelineOptions = {})
             article: null,
             persisted: false,
             usage: undefined,
-            error: error instanceof Error ? error.message : "Unknown generation error",
+            error: formatPersistError(error),
           }
         }
       })
@@ -166,8 +176,11 @@ export async function generatePipelineRun(options: GeneratePipelineOptions = {})
     }
   }
 
+  // The spread carries collected.warnings (feed errors only); the local
+  // array also accumulates persistence warnings, so it must win.
   return {
     ...collected,
+    warnings,
     generated,
     errors,
     schema: editorialSchema,
