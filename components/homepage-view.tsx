@@ -65,7 +65,7 @@ export async function HomepageView({
   enableLegacySectionRedirect = false,
 }: HomepageViewProps) {
   const dateString = formatArgentinaLongDate()
-  const [{ articles, sections, activeSectionLabel, source, warning }, clickbaitEdition] = await Promise.all([
+  const [{ articles, sections, activeSectionLabel }, clickbaitEdition] = await Promise.all([
     getHomepageEdition(activeSection),
     getPublishedClickbaitEdition(),
   ])
@@ -74,8 +74,6 @@ export async function HomepageView({
   const secondary = articles.slice(1, 3)
   const sidebar = articles.slice(3, 12)
   const remainingSections = activeSection ? [] : sections
-  const latestSignal = latestArticleSignalLabel(articles)
-  const showEditionWarning = Boolean(warning) || source !== "database"
   const sourceCount = distinctSourceCount(articles)
 
   return (
@@ -159,24 +157,6 @@ export async function HomepageView({
           </section>
         )}
 
-        {showEditionWarning && (
-          <section className="mb-8 rounded-[1.5rem] border border-amber-300/70 bg-amber-50 px-5 py-4 text-amber-950 shadow-[0_10px_30px_rgba(120,53,15,0.08)]">
-            <p className="text-xs tracking-[0.2em] uppercase text-amber-900/75">
-              Edición en modo respaldo
-            </p>
-            <h2 className="mt-2 font-serif text-2xl font-semibold">
-              La portada no está saliendo de la edición persistida más reciente
-            </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-amber-950/85 md:text-base">
-              {warning || "Se muestran síntesis armadas en tiempo real como respaldo mientras se recompone la publicación automática."}
-            </p>
-            {latestSignal && (
-              <p className="mt-3 text-xs text-amber-900/75">
-                Última señal editorial detectada: {latestSignal}
-              </p>
-            )}
-          </section>
-        )}
 
         <section>
           <div className="mb-6 flex items-end justify-between gap-4">
