@@ -3,6 +3,7 @@ import { HomepageView } from "@/components/homepage-view"
 import { HOME_SECTION_ORDER, normalizeSectionSlug } from "@/lib/news-categories"
 
 export const revalidate = 900
+export const dynamic = "force-dynamic"
 // ISR regeneration may fetch live feeds as fallback; see app/page.tsx.
 export const maxDuration = 60
 

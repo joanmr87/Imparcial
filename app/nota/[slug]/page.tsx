@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import type { FactClaim, ImpartialArticle } from "@/lib/types"
 
 export const revalidate = 1800
+export const dynamic = "force-dynamic"
 // ISR regeneration may fetch live feeds as fallback; see app/page.tsx.
 export const maxDuration = 60
 
