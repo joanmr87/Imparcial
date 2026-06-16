@@ -5,7 +5,9 @@ import { ClickbaitBustersSection } from "@/components/clickbait-busters-section"
 import { Header } from "@/components/header"
 import { HomepageSectionBlock } from "@/components/homepage-section"
 import { LegacySectionRedirect } from "@/components/legacy-section-redirect"
+import { PositioningSections } from "@/components/positioning-sections"
 import { SiteFooter } from "@/components/site-footer"
+import { WhatsappBriefing } from "@/components/whatsapp-briefing"
 import { getPublishedClickbaitEdition } from "@/lib/clickbait"
 import { formatArgentinaLongDate } from "@/lib/date-format"
 import { getHomepageEdition } from "@/lib/homepage"
@@ -47,8 +49,8 @@ function distinctSourceCount(articles: ImpartialArticle[]): number {
 
 const manifestoPillars = [
   {
-    title: "Sin sesgos",
-    body: "Ninguna nota nace de un solo medio: cada síntesis cruza varias coberturas y separa los hechos del ruido editorial.",
+    title: "Cruza versiones",
+    body: "Ninguna nota nace de un solo medio: cada síntesis cruza varias coberturas y separa hechos del ruido editorial.",
   },
   {
     title: "Trazable",
@@ -117,14 +119,14 @@ export async function HomepageView({
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="max-w-2xl">
                 <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-                  Un diario sin sesgos
+                  Hecho con IA, explicado con fuentes
                 </p>
                 <h2 className="mt-2 font-serif text-2xl font-semibold leading-snug text-foreground md:text-3xl text-balance">
                   Leemos todos los diarios para que vos leas la noticia
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-foreground/80 md:text-base">
-                  Cada síntesis junta varias coberturas sobre el mismo hecho, separa coincidencias de
-                  ruido editorial y te devuelve una versión más clara, sin opinión y con las fuentes a la vista.
+                  Diario Imparcial cruza noticias de distintos medios argentinos para darte una versión
+                  más clara, corta y verificable de lo que pasó. Menos ruido, más contexto y fuentes a la vista.
                 </p>
               </div>
               <div className="flex flex-col items-start gap-3 md:items-end">
@@ -199,6 +201,8 @@ export async function HomepageView({
           generatedAt={clickbaitEdition.generatedAt}
         />
 
+        {!activeSection && <WhatsappBriefing articles={articles} />}
+
         {sidebar.length > 0 && (
           <section className="mt-16">
             <div className="mb-6 flex items-end justify-between gap-4">
@@ -223,6 +227,8 @@ export async function HomepageView({
         {remainingSections.map(section => (
           <HomepageSectionBlock key={section.slug} section={section} />
         ))}
+
+        {!activeSection && <PositioningSections />}
 
         <section className="mt-16 rounded-[2rem] border border-border bg-card/65 px-6 py-8 shadow-[0_22px_60px_rgba(29,29,29,0.05)] md:px-10">
           <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">

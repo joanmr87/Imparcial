@@ -2,9 +2,12 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { Menu, X } from "lucide-react"
+import { Menu, MessageCircle, X } from "lucide-react"
 import { EditorialPromise } from "@/components/editorial-promise"
 import { formatArgentinaLongDate } from "@/lib/date-format"
+
+const whatsappUrl =
+  "https://wa.me/5492984388886?text=Hola%2C%20quiero%20recibir%20el%20resumen%20imparcial%20del%20dia%20por%20WhatsApp."
 
 const navItems = [
   { label: "Política", href: "/seccion/politica" },
@@ -76,6 +79,17 @@ export function Header({ dateString }: HeaderProps) {
                   </Link>
                 </li>
               ))}
+              <li>
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#bfd3c2] bg-[#e7f1eb] px-3 py-1.5 text-xs font-semibold text-[#2f4e3f] transition-colors hover:bg-[#d8eadf]"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  Resumen diario
+                </a>
+              </li>
             </ul>
           </nav>
 
@@ -110,6 +124,16 @@ export function Header({ dateString }: HeaderProps) {
                   </li>
                 ))}
               </ul>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mx-auto mt-5 flex w-fit items-center gap-2 rounded-full border border-[#bfd3c2] bg-[#e7f1eb] px-4 py-2 text-sm font-semibold text-[#2f4e3f]"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <MessageCircle className="h-4 w-4" />
+                Recibir resumen diario
+              </a>
             </nav>
           )}
         </div>

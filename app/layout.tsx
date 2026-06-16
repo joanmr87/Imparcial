@@ -16,16 +16,16 @@ const sourceSans = Source_Sans_3({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Diario Imparcial — La noticia, sin adjetivos',
+    default: 'Diario Imparcial — Menos ruido. Más contexto.',
     template: '%s | Diario Imparcial',
   },
   description:
-    'Un diario sin sesgos: cada nota cruza varias coberturas de medios argentinos, separa hechos de opinión y muestra sus fuentes. Síntesis claras, trazables y sin clickbait.',
-  keywords: ['noticias', 'argentina', 'imparcial', 'sin sesgos', 'hechos', 'sin opinión', 'transparencia', 'anti clickbait'],
+    'Diario argentino hecho con IA: cruza coberturas de varios medios, resume noticias sin opinión y muestra fuentes, coincidencias y puntos en disputa.',
+  keywords: ['noticias', 'argentina', 'imparcial', 'inteligencia artificial', 'sin sesgos', 'hechos', 'sin opinión', 'transparencia', 'anti clickbait', 'whatsapp'],
   openGraph: {
-    title: 'Diario Imparcial — La noticia, sin adjetivos',
+    title: 'Diario Imparcial — Menos ruido. Más contexto.',
     description:
-      'Un diario sin sesgos: cada nota cruza varias coberturas, separa hechos de opinión y muestra sus fuentes.',
+      'Un diario hecho con IA que cruza varios medios argentinos para darte una síntesis clara, trazable y sin opinión.',
     type: 'website',
     locale: 'es_AR',
     siteName: 'Diario Imparcial',

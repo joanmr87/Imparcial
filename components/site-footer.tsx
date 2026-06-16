@@ -1,10 +1,14 @@
 import Link from "next/link"
+import { MessageCircle } from "lucide-react"
 
 interface SiteFooterProps {
   className?: string
 }
 
 export function SiteFooter({ className = "" }: SiteFooterProps) {
+  const whatsappUrl =
+    "https://wa.me/5492984388886?text=Hola%2C%20quiero%20recibir%20el%20resumen%20imparcial%20del%20dia%20por%20WhatsApp."
+
   return (
     <footer className={`border-t border-border ${className}`.trim()}>
       <div className="mx-auto max-w-5xl px-4 py-8">
@@ -14,17 +18,27 @@ export function SiteFooter({ className = "" }: SiteFooterProps) {
               Diario Imparcial
             </Link>
             <p className="mt-1 text-xs text-muted-foreground">
-              La noticia, sin adjetivos.
+              Menos ruido. Más contexto. Fuentes a la vista.
             </p>
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#bfd3c2] bg-[#e7f1eb] px-3 py-1.5 text-xs font-semibold text-[#2f4e3f] transition-colors hover:bg-[#d8eadf]"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              Recibir resumen diario
+            </a>
           </div>
 
           <div>
             <p className="text-xs tracking-widest text-muted-foreground uppercase">
-              Firma
+              Firma editorial
             </p>
             <p className="mt-2 text-sm leading-relaxed text-foreground/80">
-              Un proyecto editorial y de producto creado por{" "}
-              <span className="font-semibold text-foreground">Joan M. Romero</span>.
+              Un proyecto de IA y producto editorial creado por{" "}
+              <span className="font-semibold text-foreground">Joan M. Romero</span> para cruzar
+              coberturas, ordenar contexto y mostrar fuentes.
             </p>
           </div>
 

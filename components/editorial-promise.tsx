@@ -28,7 +28,7 @@ export function EditorialPromise({
       >
         <span className="font-semibold uppercase tracking-[0.18em]">Hecho con IA</span>
         <span className="hidden h-1 w-1 rounded-full bg-[#6f8b78] md:block" />
-        <span>cruza varios medios para reducir sesgos y reescribir cada nota sin opinion</span>
+        <span>cruza varios medios para reducir sesgos y reescribir cada nota sin opinión</span>
         {showMethodologyLink && (
           <>
             <span className="hidden h-1 w-1 rounded-full bg-[#6f8b78] md:block" />

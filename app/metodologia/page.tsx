@@ -8,7 +8,7 @@ const promises = [
   "No parte de una sola voz: cada nota nace del cruce de varios medios.",
   "Distingue entre hechos compartidos, datos atribuidos y puntos en disputa.",
   "Muestra de qué diarios salió la información para que el lector pueda revisar el origen.",
-  "Se genera íntegramente con IA, pero con trazabilidad sobre cada fuente utilizada.",
+  "Usa IA para comparar, ordenar y sintetizar; la propuesta editorial es transparencia, no automatización ciega.",
 ]
 
 const steps = [
@@ -47,7 +47,7 @@ export default function MethodologyPage() {
             Qué es Diario Imparcial
           </p>
           <h1 className="mt-3 font-serif text-4xl font-semibold text-foreground md:text-5xl">
-            Un diario que no te pide fe: te muestra cómo llegó a cada nota
+            Un diario hecho con IA que te muestra cómo llegó a cada nota
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
             El Imparcial nace de una idea simple y potente: si una noticia importante aparece en varios
@@ -61,6 +61,10 @@ export default function MethodologyPage() {
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
             Todo el proceso está generado con IA: la detección de coincidencias entre medios, la comparación de enfoques,
             la redacción de las síntesis y la selección de la información más útil para portada.
+          </p>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+            Imparcial no significa tener una verdad perfecta. Significa mostrar de dónde sale cada versión,
+            separar hechos de opinión y dejar a la vista qué puntos son firmes y cuáles siguen abiertos.
           </p>
         </section>
 
@@ -103,8 +107,18 @@ export default function MethodologyPage() {
                 La idea de fondo
               </p>
               <p className="mt-3 text-sm leading-relaxed text-foreground/80">
-                No queremos reemplazar a los medios: queremos leerlos todos por vos, encontrar el
-                corazón de la noticia y devolvértelo en un formato más claro.
+                No queremos reemplazar a los medios: queremos leerlos todos por vos, citar sus coberturas,
+                encontrar el corazón de la noticia y devolvértelo en un formato más claro.
+              </p>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#bfd3c2] bg-[#e7f1eb] p-5">
+              <p className="text-xs tracking-widest text-[#587565] uppercase">
+                Para compartir
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-[#2f4e3f]">
+                Diario Imparcial es el medio que cruza varios diarios argentinos y te resume
+                las noticias sin opinión, con fuentes a la vista.
               </p>
             </div>
 

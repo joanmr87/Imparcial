@@ -45,7 +45,7 @@ export function TransparencyPanel({ article }: TransparencyPanelProps) {
 
       <div>
         <p className="text-xs tracking-widest text-muted-foreground uppercase">
-          Puntos mas firmes
+          Puntos más firmes
         </p>
         <ul className="mt-4 space-y-3">
           {article.facts.filter(f => f.status === 'confirmed').slice(0, 4).map((fact, index) => (

@@ -9,6 +9,7 @@ import { findPublishedArticleBySlug, listPublishedArticles } from "@/lib/article
 import { getGeneratedEditorialStock } from "@/lib/editorial-stock"
 import { formatArgentinaLongDate } from "@/lib/date-format"
 import { Separator } from "@/components/ui/separator"
+import type { FactClaim, ImpartialArticle } from "@/lib/types"
 
 export const revalidate = 1800
 // ISR regeneration may fetch live feeds as fallback; see app/page.tsx.
@@ -16,6 +17,44 @@ export const maxDuration = 60
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>
+}
+
+function factStatusLabel(status: FactClaim["status"]): string {
+  if (status === "confirmed") return "Confirmado por varias fuentes"
+  if (status === "disputed") return "En disputa"
+  if (status === "developing") return "En desarrollo"
+  return "Reportado"
+}
+
+function buildReaderGuide(article: ImpartialArticle) {
+  const confirmedFacts = article.facts.filter(fact => fact.status === "confirmed")
+  const openFacts = article.facts.filter(fact => fact.status !== "confirmed")
+  const firstDiscrepancy = article.discrepancies[0]
+
+  return [
+    {
+      title: "Qué pasó",
+      body: article.summary,
+    },
+    {
+      title: "Qué coinciden los medios",
+      body:
+        confirmedFacts[0]?.text ||
+        `La noticia fue detectada en ${article.sourceCount} fuentes que cubren el mismo tema.`,
+    },
+    {
+      title: "Qué falta confirmar",
+      body:
+        firstDiscrepancy?.topic ||
+        openFacts[0]?.text ||
+        "No hay discrepancias relevantes marcadas en esta síntesis.",
+    },
+    {
+      title: "Por qué importa",
+      body:
+        "Te permite entender el hecho sin depender de una sola línea editorial y con las fuentes principales a la vista.",
+    },
+  ]
 }
 
 export async function generateStaticParams() {
@@ -59,6 +98,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   const sourceCount = article.sources?.length || article.sourceCount || 3
   const sourceTags = [...new Set((article.sources || []).map(source => source.name))]
+  const readerGuide = buildReaderGuide(article)
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(214,203,184,0.18),_transparent_40%),linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(250,247,241,0.94))]">
@@ -70,8 +110,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             Que estas leyendo
           </p>
           <p className="mt-2 text-sm leading-relaxed text-foreground/80">
-            Esta nota es una sintesis editorial generada con IA a partir de varias coberturas sobre el mismo hecho.
-            Busca bajar el peso de una sola linea editorial y separar mejor hechos, atribuciones y diferencias.
+            Esta nota es una síntesis editorial generada con IA a partir de varias coberturas sobre el mismo hecho.
+            Busca bajar el peso de una sola línea editorial y separar mejor hechos, atribuciones y diferencias.
           </p>
           <EditorialPromise centered={false} compact />
         </section>
@@ -105,6 +145,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 <time dateTime={article.createdAt}>{formattedDate}</time>
                 <span className="text-border">|</span>
                 <span>{sourceCount} fuentes</span>
+                <span className="text-border">|</span>
+                <span>{factStatusLabel(article.status === "confirmed" ? "confirmed" : article.status === "disputed" ? "disputed" : "developing")}</span>
               </div>
 
               {sourceTags.length > 0 && (
@@ -136,6 +178,27 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             )}
 
             <Separator className="mb-10" />
+
+            <section className="mb-10 rounded-[1.75rem] border border-[#bfd3c2] bg-[#eaf4ee] px-5 py-6 md:px-7">
+              <p className="text-xs tracking-[0.2em] text-[#587565] uppercase">
+                Guia rapida
+              </p>
+              <h2 className="mt-2 font-serif text-2xl font-semibold text-[#1f352b]">
+                La nota en cuatro preguntas
+              </h2>
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {readerGuide.map(item => (
+                  <article key={item.title} className="rounded-[1.15rem] border border-[#c8ddd2] bg-white/72 px-4 py-4">
+                    <h3 className="text-sm font-semibold text-[#1f352b]">
+                      {item.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-[#597369]">
+                      {item.body}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
 
             <div className="rounded-[1.75rem] border border-border/70 bg-card/80 px-5 py-6 shadow-[0_18px_40px_rgba(28,28,28,0.04)] md:px-8 md:py-8">
               {(article.content || '').split('\n\n').map((paragraph, index) => {
