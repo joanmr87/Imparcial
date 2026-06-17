@@ -5,7 +5,6 @@ import { ClickbaitBustersSection } from "@/components/clickbait-busters-section"
 import { Header } from "@/components/header"
 import { HomepageSectionBlock } from "@/components/homepage-section"
 import { LegacySectionRedirect } from "@/components/legacy-section-redirect"
-import { PositioningSections } from "@/components/positioning-sections"
 import { SiteFooter } from "@/components/site-footer"
 import { WhatsappBriefing } from "@/components/whatsapp-briefing"
 import { getPublishedClickbaitEdition } from "@/lib/clickbait"
@@ -193,7 +192,20 @@ export async function HomepageView({
                 El diario publica esta vista solo cuando encuentra varias coberturas sobre un mismo tema. En cuanto entren coincidencias reales, la sección se completa sola.
               </p>
             </section>
-          ) : null}
+          ) : (
+            <section className="rounded-[1.5rem] border border-border bg-card/30 px-6 py-8">
+              <p className="text-xs tracking-widest text-muted-foreground uppercase">
+                Edición en actualización
+              </p>
+              <h3 className="mt-3 font-serif text-2xl font-semibold text-foreground">
+                Todavía no hay suficientes cruces frescos entre medios
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                La portada se publica cuando encuentra coberturas recientes sobre un mismo hecho.
+                Preferimos esperar una edición confiable antes que rellenar con noticias viejas.
+              </p>
+            </section>
+          )}
         </section>
 
         <ClickbaitBustersSection
@@ -201,7 +213,7 @@ export async function HomepageView({
           generatedAt={clickbaitEdition.generatedAt}
         />
 
-        {!activeSection && <WhatsappBriefing articles={articles} />}
+        {!activeSection && articles.length > 0 && <WhatsappBriefing articles={articles} />}
 
         {sidebar.length > 0 && (
           <section className="mt-16">
@@ -227,8 +239,6 @@ export async function HomepageView({
         {remainingSections.map(section => (
           <HomepageSectionBlock key={section.slug} section={section} />
         ))}
-
-        {!activeSection && <PositioningSections />}
 
         <section className="mt-16 rounded-[2rem] border border-border bg-card/65 px-6 py-8 shadow-[0_22px_60px_rgba(29,29,29,0.05)] md:px-10">
           <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">

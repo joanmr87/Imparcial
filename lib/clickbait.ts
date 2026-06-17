@@ -48,9 +48,21 @@ const CLICKBAIT_SNAPSHOT_SLOT = "daily"
 const CLICKBAIT_TARGET_ITEMS = 6
 const CLICKBAIT_MAX_ITEMS = 9
 const CLICKBAIT_BACKFILL_DAYS = 7
+const PUBLISHED_CLICKBAIT_MAX_AGE_DAYS = 3
 
 function isMissingIncrementalCacheError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("incrementalCache missing")
+}
+
+function daysBetweenDateKeys(left: string, right: string): number {
+  const leftTime = new Date(`${left}T00:00:00Z`).getTime()
+  const rightTime = new Date(`${right}T00:00:00Z`).getTime()
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return Number.POSITIVE_INFINITY
+  return Math.abs(rightTime - leftTime) / (1000 * 60 * 60 * 24)
+}
+
+function isRecentClickbaitSnapshot(snapshotDate: string, currentDate: string): boolean {
+  return daysBetweenDateKeys(snapshotDate, currentDate) <= PUBLISHED_CLICKBAIT_MAX_AGE_DAYS
 }
 
 const HINT_PATTERNS = [
@@ -1078,7 +1090,10 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
     CLICKBAIT_SNAPSHOT_SLOT
   )
 
-  if (latestSnapshot?.payload.items.length) {
+  if (
+    latestSnapshot?.payload.items.length &&
+    isRecentClickbaitSnapshot(latestSnapshot.snapshotDate, snapshotDate)
+  ) {
     const latestItems = latestSnapshot.payload.items.filter(isRenderableClickbaitItem)
     const fallbackItems = latestSnapshot.snapshotDate === snapshotDate
       ? previousItems

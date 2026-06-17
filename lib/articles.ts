@@ -9,7 +9,6 @@ const FRESH_SIGNAL_WINDOW_HOURS = 36
 const RECENT_SIGNAL_WINDOW_HOURS = 72
 const MIN_HOMEPAGE_ARTICLES = 16
 const MIN_HOMEPAGE_CATEGORIES = 4
-const MAX_STALE_DATABASE_FILL = 6
 const PUBLISHED_ARTICLE_SNAPSHOT_TYPE = "published-article"
 const volatilePublishedArticleArchive = new Map<string, ImpartialArticle>()
 const ARTICLE_SLUG_FINGERPRINT_PATTERN = /-([a-f0-9]{8})$/i
@@ -104,14 +103,6 @@ function selectPublishedDatabaseArticles(articles: ImpartialArticle[]): {
   }
 }
 
-function mergePublishedArticles(
-  leadingArticles: ImpartialArticle[],
-  trailingArticles: ImpartialArticle[],
-  limit = 28
-): ImpartialArticle[] {
-  return sortPublishedArticles(dedupeArticles([...leadingArticles, ...trailingArticles])).slice(0, limit)
-}
-
 function isMissingIncrementalCacheError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("incrementalCache missing")
 }
@@ -129,7 +120,7 @@ async function readPublishedArticles(): Promise<{
   warning?: string
 }> {
   try {
-    const { fresh: freshDatabaseArticles, stale: staleDatabaseArticles } = selectPublishedDatabaseArticles(await getDatabaseArticles())
+    const { fresh: freshDatabaseArticles } = selectPublishedDatabaseArticles(await getDatabaseArticles())
     const freshestDatabaseHours = freshDatabaseArticles[0]
       ? hoursSince(articleSignalTimestamp(freshDatabaseArticles[0]))
       : Number.POSITIVE_INFINITY
@@ -146,27 +137,14 @@ async function readPublishedArticles(): Promise<{
       }
     }
 
-    let mergedArticles = mergePublishedArticles(freshDatabaseArticles, staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL))
-
-    if (mergedArticles.length < MIN_HOMEPAGE_ARTICLES) {
-      mergedArticles = mergePublishedArticles(mergedArticles, staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL))
-    }
-
-    if (mergedArticles.length > 0) {
-      rememberPublishedArticles(mergedArticles)
+    if (freshDatabaseArticles.length > 0) {
+      rememberPublishedArticles(freshDatabaseArticles)
       return {
-        articles: mergedArticles,
+        articles: freshDatabaseArticles,
         source: "database",
-        warning: "La portada prioriza temas frescos del día. Si la edición actual queda corta, se completa con una selección de respaldo ya publicada.",
-      }
-    }
-
-    if (staleDatabaseArticles.length > 0) {
-      rememberPublishedArticles(staleDatabaseArticles)
-      return {
-        articles: staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL),
-        source: "database",
-        warning: "No entró todavía una edición fresca suficiente y por eso se muestra una selección limitada de la última edición sólida disponible.",
+        warning: needsEditorialSupport
+          ? "La edición actual todavía no tiene suficiente volumen fresco, por eso se muestra solo lo publicado recientemente."
+          : undefined,
       }
     }
 
