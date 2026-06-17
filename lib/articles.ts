@@ -1,8 +1,7 @@
 import { unstable_cache } from "next/cache"
 import { isArticleCoherent } from "./article-dedup"
-import { getGeneratedEditorialStock } from "./editorial-stock"
 import { inferCategoryFromArticle } from "./news-categories"
-import { getArgentinaDateKey, safeGetLatestSiteSnapshot, safeUpsertSiteSnapshot } from "./site-snapshots"
+import { safeGetLatestSiteSnapshot } from "./site-snapshots"
 import { getDatabaseArticleBySlug, getDatabaseArticles, isTableMissingError } from "./supabase-admin"
 import type { ImpartialArticle } from "./types"
 
@@ -124,29 +123,6 @@ function rememberPublishedArticles(articles: ImpartialArticle[]) {
   }
 }
 
-async function persistPublishedArticlesSnapshot(articles: ImpartialArticle[]) {
-  if (articles.length === 0) return
-
-  const snapshotDate = getArgentinaDateKey()
-
-  try {
-    await Promise.all(
-      articles
-        .filter(article => article.slug)
-        .map(article =>
-          safeUpsertSiteSnapshot({
-            snapshotType: PUBLISHED_ARTICLE_SNAPSHOT_TYPE,
-            snapshotDate,
-            snapshotSlot: article.slug,
-            payload: article,
-          })
-        )
-    )
-  } catch {
-    // Snapshotting is best-effort and must not hide the published edition itself.
-  }
-}
-
 async function readPublishedArticles(): Promise<{
   articles: ImpartialArticle[]
   source: "database" | "generated" | "empty"
@@ -164,18 +140,13 @@ async function readPublishedArticles(): Promise<{
 
     if (!needsEditorialSupport && freshDatabaseArticles.length > 0) {
       rememberPublishedArticles(freshDatabaseArticles)
-      await persistPublishedArticlesSnapshot(freshDatabaseArticles)
       return {
         articles: freshDatabaseArticles,
         source: "database",
       }
     }
 
-    const generatedArticles = (await getGeneratedEditorialStock()).filter(isArticleCoherent)
-    const leadingArticles = generatedArticles.length > 0
-      ? generatedArticles
-      : freshDatabaseArticles
-    let mergedArticles = mergePublishedArticles(leadingArticles, freshDatabaseArticles)
+    let mergedArticles = mergePublishedArticles(freshDatabaseArticles, staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL))
 
     if (mergedArticles.length < MIN_HOMEPAGE_ARTICLES) {
       mergedArticles = mergePublishedArticles(mergedArticles, staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL))
@@ -183,17 +154,15 @@ async function readPublishedArticles(): Promise<{
 
     if (mergedArticles.length > 0) {
       rememberPublishedArticles(mergedArticles)
-      await persistPublishedArticlesSnapshot(mergedArticles)
       return {
         articles: mergedArticles,
-        source: freshDatabaseArticles.length > 0 ? "database" : "generated",
-        warning: "La portada prioriza temas frescos del día. Si la edición persistida queda corta, se completa con una selección de respaldo construida desde coberturas recientes de varios medios.",
+        source: "database",
+        warning: "La portada prioriza temas frescos del día. Si la edición actual queda corta, se completa con una selección de respaldo ya publicada.",
       }
     }
 
     if (staleDatabaseArticles.length > 0) {
       rememberPublishedArticles(staleDatabaseArticles)
-      await persistPublishedArticlesSnapshot(staleDatabaseArticles)
       return {
         articles: staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL),
         source: "database",
@@ -207,21 +176,6 @@ async function readPublishedArticles(): Promise<{
       warning: "Todavía no hay síntesis suficientes construidas desde varias coberturas para abrir una edición completa.",
     }
   } catch (error) {
-    try {
-      const generatedArticles = (await getGeneratedEditorialStock()).filter(isArticleCoherent)
-      if (generatedArticles.length > 0) {
-        rememberPublishedArticles(generatedArticles)
-        await persistPublishedArticlesSnapshot(generatedArticles)
-        return {
-          articles: sortPublishedArticles(generatedArticles),
-          source: "generated",
-          warning: "La edición persistida no está disponible y se muestra una selección de respaldo construida desde varias coberturas.",
-        }
-      }
-    } catch {
-      // Fall through to empty state below.
-    }
-
     return {
       articles: [],
       source: "empty",
@@ -307,20 +261,6 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
     }
   } catch {
     // Fall through to generated content.
-  }
-
-  try {
-    const generatedArticles = await getGeneratedEditorialStock()
-    const generatedArticle = findArticleByRequestedSlug(
-      generatedArticles.filter(isArticleCoherent),
-      slug
-    )
-    if (generatedArticle) {
-      rememberPublishedArticles([generatedArticle])
-      return { article: generatedArticle, source: "generated" }
-    }
-  } catch {
-    // Fall through to empty content.
   }
 
   return { article: null, source: "empty" }

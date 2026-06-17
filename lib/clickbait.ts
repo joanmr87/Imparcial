@@ -1064,26 +1064,13 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
   const previousItems = await getHistoricalClickbaitItems(snapshotDate)
 
   if (todaySnapshot) {
-    const emergencyItems = await getEmergencyClickbaitBusters()
-    const repairedItems = mergeClickbaitItemsForEdition(
-      [...todayItems, ...emergencyItems],
-      previousItems
-    )
-    const repairedPayload: ClickbaitSnapshotPayload = {
+    const repairedItems = mergeClickbaitItemsForEdition(todayItems, previousItems)
+
+    return {
       ...todaySnapshot.payload,
-      freshCount: Math.max(todaySnapshot.payload.freshCount, emergencyItems.length),
-      reusedCount: Math.max(0, repairedItems.length - emergencyItems.length),
+      reusedCount: Math.max(0, repairedItems.length - todayItems.length),
       items: repairedItems,
     }
-
-    const storedSnapshot = await safeUpsertSiteSnapshot({
-      snapshotType: CLICKBAIT_SNAPSHOT_TYPE,
-      snapshotDate,
-      snapshotSlot: CLICKBAIT_SNAPSHOT_SLOT,
-      payload: repairedPayload,
-    })
-
-    return storedSnapshot?.payload || repairedPayload
   }
 
   const latestSnapshot = await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
@@ -1103,13 +1090,12 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
     }
   }
 
-  const emergencyItems = await getEmergencyClickbaitBusters()
   return {
     generatedAt: new Date().toISOString(),
     snapshotDate,
-    freshCount: emergencyItems.length,
+    freshCount: 0,
     reusedCount: 0,
-    items: emergencyItems.slice(0, CLICKBAIT_MAX_ITEMS),
+    items: [],
   }
 }
 

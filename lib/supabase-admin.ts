@@ -175,6 +175,7 @@ export async function getDatabaseArticles(): Promise<ImpartialArticle[]> {
       facts:facts(*)
     `)
     .order("published_at", { ascending: false })
+    .limit(80)
 
   if (error) throw error
 
