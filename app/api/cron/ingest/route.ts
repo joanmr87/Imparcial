@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [result, clickbaitEdition] = await Promise.all([
+    const [pipelineResult, clickbaitResult] = await Promise.allSettled([
       generatePipelineRun({
         minSources: 2,
         // 12 notas por corrida entran holgadas en los 60s de maxDuration;
@@ -34,6 +34,13 @@ export async function GET(request: Request) {
       refreshDailyClickbaitEdition(),
     ])
 
+    if (pipelineResult.status === "rejected") {
+      throw pipelineResult.reason
+    }
+
+    const result = pipelineResult.value
+    const clickbaitEdition = clickbaitResult.status === "fulfilled" ? clickbaitResult.value : null
+
     revalidatePath("/")
     revalidatePath("/nota/[slug]", "page")
 
@@ -41,9 +48,19 @@ export async function GET(request: Request) {
       success: true,
       timestamp: result.timestamp,
       generatedCount: result.generated.length,
-      clickbaitCount: clickbaitEdition.items.length,
+      clickbaitCount: clickbaitEdition?.items.length || 0,
       errorCount: result.errors.length,
-      warnings: result.warnings,
+      warnings: [
+        ...result.warnings,
+        ...(clickbaitResult.status === "rejected"
+          ? [{
+              code: "clickbait_failed",
+              message: clickbaitResult.reason instanceof Error
+                ? clickbaitResult.reason.message
+                : "Clickbait refresh failed",
+            }]
+          : []),
+      ],
       schema: result.schema,
       clickbaitEdition,
       generated: result.generated.map(item => ({

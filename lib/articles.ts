@@ -1,14 +1,18 @@
 import { unstable_cache } from "next/cache"
 import { isArticleCoherent } from "./article-dedup"
+import { generateImpartialArticle } from "./editorial"
 import { inferCategoryFromArticle } from "./news-categories"
+import { clusterNews, fetchAllFeeds } from "./rss-fetcher"
 import { safeGetLatestSiteSnapshot } from "./site-snapshots"
 import { getDatabaseArticleBySlug, getDatabaseArticles, isTableMissingError } from "./supabase-admin"
-import type { ImpartialArticle } from "./types"
+import type { ImpartialArticle, NewsCluster } from "./types"
 
 const FRESH_SIGNAL_WINDOW_HOURS = 36
 const RECENT_SIGNAL_WINDOW_HOURS = 72
 const MIN_HOMEPAGE_ARTICLES = 16
 const MIN_HOMEPAGE_CATEGORIES = 4
+const LIVE_FALLBACK_LIMIT = 12
+const LIVE_FALLBACK_SOURCE_IDS = ["lanacion", "tn", "ambito", "c5n", "infobae"]
 const PUBLISHED_ARTICLE_SNAPSHOT_TYPE = "published-article"
 const volatilePublishedArticleArchive = new Map<string, ImpartialArticle>()
 const ARTICLE_SLUG_FINGERPRINT_PATTERN = /-([a-f0-9]{8})$/i
@@ -114,6 +118,46 @@ function rememberPublishedArticles(articles: ImpartialArticle[]) {
   }
 }
 
+function clusterFreshnessHours(cluster: NewsCluster): number {
+  const date = new Date(cluster.lastPublishedAt).getTime()
+  if (Number.isNaN(date)) return RECENT_SIGNAL_WINDOW_HOURS
+  return Math.max(0, (Date.now() - date) / (1000 * 60 * 60))
+}
+
+function liveFallbackClusterScore(cluster: NewsCluster): number {
+  const freshnessBoost = Math.max(0, FRESH_SIGNAL_WINDOW_HOURS - clusterFreshnessHours(cluster))
+  return cluster.sourcesCount * 12 + Math.min(cluster.articles.length, 6) * 2 + freshnessBoost
+}
+
+async function buildLiveFallbackArticles(): Promise<ImpartialArticle[]> {
+  const feedResults = await fetchAllFeeds(LIVE_FALLBACK_SOURCE_IDS)
+  const clusters = clusterNews(feedResults.flatMap(result => result.items))
+    .filter(cluster => cluster.sourcesCount >= 2)
+    .filter(cluster => clusterFreshnessHours(cluster) <= FRESH_SIGNAL_WINDOW_HOURS)
+    .sort((left, right) => {
+      const scoreDifference = liveFallbackClusterScore(right) - liveFallbackClusterScore(left)
+      if (scoreDifference !== 0) return scoreDifference
+      return new Date(right.lastPublishedAt).getTime() - new Date(left.lastPublishedAt).getTime()
+    })
+    .slice(0, LIVE_FALLBACK_LIMIT)
+
+  const articles = await Promise.all(
+    clusters.map(async cluster => {
+      const { article } = await generateImpartialArticle(cluster.topic, cluster.articles, { useAi: false })
+      return article
+    })
+  )
+
+  rememberPublishedArticles(articles)
+  return articles.filter(isArticleCoherent)
+}
+
+const getCachedLiveFallbackArticles = unstable_cache(
+  buildLiveFallbackArticles,
+  ["live-fallback-articles-v2"],
+  { revalidate: 600 }
+)
+
 async function readPublishedArticles(): Promise<{
   articles: ImpartialArticle[]
   source: "database" | "generated" | "empty"
@@ -148,12 +192,34 @@ async function readPublishedArticles(): Promise<{
       }
     }
 
+    const liveFallbackArticles = await getCachedLiveFallbackArticles()
+    if (liveFallbackArticles.length > 0) {
+      return {
+        articles: liveFallbackArticles,
+        source: "generated",
+        warning: "La base publicada todavía no tiene una edición fresca, por eso se muestra una edición temporal construida desde RSS actuales.",
+      }
+    }
+
     return {
       articles: [],
       source: "empty",
       warning: "Todavía no hay síntesis suficientes construidas desde varias coberturas para abrir una edición completa.",
     }
   } catch (error) {
+    try {
+      const liveFallbackArticles = await getCachedLiveFallbackArticles()
+      if (liveFallbackArticles.length > 0) {
+        return {
+          articles: liveFallbackArticles,
+          source: "generated",
+          warning: "La base editorial no respondió y se muestra una edición temporal construida desde RSS actuales.",
+        }
+      }
+    } catch {
+      // Fall through to empty state below.
+    }
+
     return {
       articles: [],
       source: "empty",
@@ -166,7 +232,7 @@ async function readPublishedArticles(): Promise<{
 
 const getCachedPublishedArticles = unstable_cache(
   readPublishedArticles,
-  ["published-articles-v1"],
+  ["published-articles-v2"],
   { revalidate: 900 }
 )
 
