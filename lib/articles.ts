@@ -1,18 +1,16 @@
 import { unstable_cache } from "next/cache"
 import { isArticleCoherent } from "./article-dedup"
-import { generateImpartialArticle } from "./editorial"
+import { getGeneratedEditorialStock } from "./editorial-stock"
 import { inferCategoryFromArticle } from "./news-categories"
-import { clusterNews, fetchAllFeeds } from "./rss-fetcher"
-import { safeGetLatestSiteSnapshot } from "./site-snapshots"
+import { getArgentinaDateKey, safeGetLatestSiteSnapshot, safeUpsertSiteSnapshot } from "./site-snapshots"
 import { getDatabaseArticleBySlug, getDatabaseArticles, isTableMissingError } from "./supabase-admin"
-import type { ImpartialArticle, NewsCluster } from "./types"
+import type { ImpartialArticle } from "./types"
 
 const FRESH_SIGNAL_WINDOW_HOURS = 36
 const RECENT_SIGNAL_WINDOW_HOURS = 72
 const MIN_HOMEPAGE_ARTICLES = 16
 const MIN_HOMEPAGE_CATEGORIES = 4
-const LIVE_FALLBACK_LIMIT = 12
-const LIVE_FALLBACK_SOURCE_IDS = ["lanacion", "tn", "ambito", "c5n", "infobae"]
+const MAX_STALE_DATABASE_FILL = 6
 const PUBLISHED_ARTICLE_SNAPSHOT_TYPE = "published-article"
 const volatilePublishedArticleArchive = new Map<string, ImpartialArticle>()
 const ARTICLE_SLUG_FINGERPRINT_PATTERN = /-([a-f0-9]{8})$/i
@@ -107,6 +105,14 @@ function selectPublishedDatabaseArticles(articles: ImpartialArticle[]): {
   }
 }
 
+function mergePublishedArticles(
+  leadingArticles: ImpartialArticle[],
+  trailingArticles: ImpartialArticle[],
+  limit = 28
+): ImpartialArticle[] {
+  return sortPublishedArticles(dedupeArticles([...leadingArticles, ...trailingArticles])).slice(0, limit)
+}
+
 function isMissingIncrementalCacheError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("incrementalCache missing")
 }
@@ -118,38 +124,27 @@ function rememberPublishedArticles(articles: ImpartialArticle[]) {
   }
 }
 
-function clusterFreshnessHours(cluster: NewsCluster): number {
-  const date = new Date(cluster.lastPublishedAt).getTime()
-  if (Number.isNaN(date)) return RECENT_SIGNAL_WINDOW_HOURS
-  return Math.max(0, (Date.now() - date) / (1000 * 60 * 60))
-}
+async function persistPublishedArticlesSnapshot(articles: ImpartialArticle[]) {
+  if (articles.length === 0) return
 
-function liveFallbackClusterScore(cluster: NewsCluster): number {
-  const freshnessBoost = Math.max(0, FRESH_SIGNAL_WINDOW_HOURS - clusterFreshnessHours(cluster))
-  return cluster.sourcesCount * 12 + Math.min(cluster.articles.length, 6) * 2 + freshnessBoost
-}
+  const snapshotDate = getArgentinaDateKey()
 
-async function buildLiveFallbackArticles(): Promise<ImpartialArticle[]> {
-  const feedResults = await fetchAllFeeds(LIVE_FALLBACK_SOURCE_IDS)
-  const clusters = clusterNews(feedResults.flatMap(result => result.items))
-    .filter(cluster => cluster.sourcesCount >= 2)
-    .filter(cluster => clusterFreshnessHours(cluster) <= FRESH_SIGNAL_WINDOW_HOURS)
-    .sort((left, right) => {
-      const scoreDifference = liveFallbackClusterScore(right) - liveFallbackClusterScore(left)
-      if (scoreDifference !== 0) return scoreDifference
-      return new Date(right.lastPublishedAt).getTime() - new Date(left.lastPublishedAt).getTime()
-    })
-    .slice(0, LIVE_FALLBACK_LIMIT)
-
-  const articles = await Promise.all(
-    clusters.map(async cluster => {
-      const { article } = await generateImpartialArticle(cluster.topic, cluster.articles, { useAi: false })
-      return article
-    })
-  )
-
-  rememberPublishedArticles(articles)
-  return articles.filter(isArticleCoherent)
+  try {
+    await Promise.all(
+      articles
+        .filter(article => article.slug)
+        .map(article =>
+          safeUpsertSiteSnapshot({
+            snapshotType: PUBLISHED_ARTICLE_SNAPSHOT_TYPE,
+            snapshotDate,
+            snapshotSlot: article.slug,
+            payload: article,
+          })
+        )
+    )
+  } catch {
+    // Snapshotting is best-effort and must not hide the published edition itself.
+  }
 }
 
 async function readPublishedArticles(): Promise<{
@@ -158,7 +153,7 @@ async function readPublishedArticles(): Promise<{
   warning?: string
 }> {
   try {
-    const { fresh: freshDatabaseArticles } = selectPublishedDatabaseArticles(await getDatabaseArticles())
+    const { fresh: freshDatabaseArticles, stale: staleDatabaseArticles } = selectPublishedDatabaseArticles(await getDatabaseArticles())
     const freshestDatabaseHours = freshDatabaseArticles[0]
       ? hoursSince(articleSignalTimestamp(freshDatabaseArticles[0]))
       : Number.POSITIVE_INFINITY
@@ -169,29 +164,41 @@ async function readPublishedArticles(): Promise<{
 
     if (!needsEditorialSupport && freshDatabaseArticles.length > 0) {
       rememberPublishedArticles(freshDatabaseArticles)
+      await persistPublishedArticlesSnapshot(freshDatabaseArticles)
       return {
         articles: freshDatabaseArticles,
         source: "database",
       }
     }
 
-    if (freshDatabaseArticles.length > 0) {
-      rememberPublishedArticles(freshDatabaseArticles)
+    const generatedArticles = (await getGeneratedEditorialStock()).filter(isArticleCoherent)
+    const leadingArticles = generatedArticles.length > 0
+      ? generatedArticles
+      : freshDatabaseArticles
+    let mergedArticles = mergePublishedArticles(leadingArticles, freshDatabaseArticles)
+
+    if (mergedArticles.length < MIN_HOMEPAGE_ARTICLES) {
+      mergedArticles = mergePublishedArticles(mergedArticles, staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL))
+    }
+
+    if (mergedArticles.length > 0) {
+      rememberPublishedArticles(mergedArticles)
+      await persistPublishedArticlesSnapshot(mergedArticles)
       return {
-        articles: freshDatabaseArticles,
-        source: "database",
-        warning: needsEditorialSupport
-          ? "La edición actual todavía no tiene suficiente volumen fresco, por eso se muestra solo lo publicado recientemente."
-          : undefined,
+        articles: mergedArticles,
+        source: freshDatabaseArticles.length > 0 ? "database" : "generated",
+        warning: "La portada prioriza temas frescos del día. Si la edición persistida queda corta, se completa con una selección de respaldo construida desde coberturas recientes de varios medios.",
       }
     }
 
-    const liveFallbackArticles = await buildLiveFallbackArticles()
-    if (liveFallbackArticles.length > 0) {
+    if (staleDatabaseArticles.length > 0) {
+      const fallbackArticles = staleDatabaseArticles.slice(0, MAX_STALE_DATABASE_FILL)
+      rememberPublishedArticles(fallbackArticles)
+      await persistPublishedArticlesSnapshot(fallbackArticles)
       return {
-        articles: liveFallbackArticles,
-        source: "generated",
-        warning: "La base publicada todavía no tiene una edición fresca, por eso se muestra una edición temporal construida desde RSS actuales.",
+        articles: fallbackArticles,
+        source: "database",
+        warning: "No entró todavía una edición fresca suficiente y por eso se muestra una selección limitada de la última edición sólida disponible.",
       }
     }
 
@@ -202,12 +209,15 @@ async function readPublishedArticles(): Promise<{
     }
   } catch (error) {
     try {
-      const liveFallbackArticles = await buildLiveFallbackArticles()
-      if (liveFallbackArticles.length > 0) {
+      const generatedArticles = (await getGeneratedEditorialStock()).filter(isArticleCoherent)
+      if (generatedArticles.length > 0) {
+        const sortedGeneratedArticles = sortPublishedArticles(generatedArticles)
+        rememberPublishedArticles(sortedGeneratedArticles)
+        await persistPublishedArticlesSnapshot(sortedGeneratedArticles)
         return {
-          articles: liveFallbackArticles,
+          articles: sortedGeneratedArticles,
           source: "generated",
-          warning: "La base editorial no respondió y se muestra una edición temporal construida desde RSS actuales.",
+          warning: "La edición persistida no está disponible y se muestra una selección de respaldo construida desde varias coberturas.",
         }
       }
     } catch {
@@ -226,7 +236,7 @@ async function readPublishedArticles(): Promise<{
 
 const getCachedPublishedArticles = unstable_cache(
   readPublishedArticles,
-  ["published-articles-v2"],
+  ["published-articles-v3"],
   { revalidate: 900 }
 )
 
@@ -236,7 +246,12 @@ export async function listPublishedArticles(): Promise<{
   warning?: string
 }> {
   try {
-    return await getCachedPublishedArticles()
+    const cachedEdition = await getCachedPublishedArticles()
+    if (cachedEdition.source === "empty" || cachedEdition.articles.length === 0) {
+      return readPublishedArticles()
+    }
+
+    return cachedEdition
   } catch (error) {
     if (isMissingIncrementalCacheError(error)) {
       return readPublishedArticles()
@@ -299,6 +314,20 @@ export async function findPublishedArticleBySlug(slug: string): Promise<{
     }
   } catch {
     // Fall through to generated content.
+  }
+
+  try {
+    const generatedArticles = await getGeneratedEditorialStock()
+    const generatedArticle = findArticleByRequestedSlug(
+      generatedArticles.filter(isArticleCoherent),
+      slug
+    )
+    if (generatedArticle) {
+      rememberPublishedArticles([generatedArticle])
+      return { article: generatedArticle, source: "generated" }
+    }
+  } catch {
+    // Fall through to empty content.
   }
 
   return { article: null, source: "empty" }

@@ -127,13 +127,18 @@ async function buildHomepageBaseEdition(): Promise<HomepageBaseEdition> {
 
 const getCachedHomepageBaseEdition = unstable_cache(
   buildHomepageBaseEdition,
-  ["homepage-edition-v3"],
+  ["homepage-edition-v4"],
   { revalidate: 900 }
 )
 
 async function getHomepageBaseEdition(): Promise<HomepageBaseEdition> {
   try {
-    return await getCachedHomepageBaseEdition()
+    const cachedEdition = await getCachedHomepageBaseEdition()
+    if (cachedEdition.source === "empty" || cachedEdition.rankedArticles.length === 0) {
+      return buildHomepageBaseEdition()
+    }
+
+    return cachedEdition
   } catch (error) {
     if (isMissingIncrementalCacheError(error)) {
       return buildHomepageBaseEdition()
