@@ -127,7 +127,7 @@ async function buildHomepageBaseEdition(): Promise<HomepageBaseEdition> {
 
 const getCachedHomepageBaseEdition = unstable_cache(
   buildHomepageBaseEdition,
-  ["homepage-edition-v2"],
+  ["homepage-edition-v3"],
   { revalidate: 900 }
 )
 

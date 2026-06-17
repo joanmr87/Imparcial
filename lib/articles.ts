@@ -152,12 +152,6 @@ async function buildLiveFallbackArticles(): Promise<ImpartialArticle[]> {
   return articles.filter(isArticleCoherent)
 }
 
-const getCachedLiveFallbackArticles = unstable_cache(
-  buildLiveFallbackArticles,
-  ["live-fallback-articles-v2"],
-  { revalidate: 600 }
-)
-
 async function readPublishedArticles(): Promise<{
   articles: ImpartialArticle[]
   source: "database" | "generated" | "empty"
@@ -192,7 +186,7 @@ async function readPublishedArticles(): Promise<{
       }
     }
 
-    const liveFallbackArticles = await getCachedLiveFallbackArticles()
+    const liveFallbackArticles = await buildLiveFallbackArticles()
     if (liveFallbackArticles.length > 0) {
       return {
         articles: liveFallbackArticles,
@@ -208,7 +202,7 @@ async function readPublishedArticles(): Promise<{
     }
   } catch (error) {
     try {
-      const liveFallbackArticles = await getCachedLiveFallbackArticles()
+      const liveFallbackArticles = await buildLiveFallbackArticles()
       if (liveFallbackArticles.length > 0) {
         return {
           articles: liveFallbackArticles,
