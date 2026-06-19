@@ -112,11 +112,11 @@ export default function MethodologyPage() {
               </p>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-[#bfd3c2] bg-[#e7f1eb] p-5">
-              <p className="text-xs tracking-widest text-[#587565] uppercase">
+            <div className="mt-5 rounded-2xl border border-stone-300/80 bg-stone-950 p-5 text-stone-50">
+              <p className="text-xs tracking-widest text-amber-200/85 uppercase">
                 Para compartir
               </p>
-              <p className="mt-3 text-sm leading-relaxed text-[#2f4e3f]">
+              <p className="mt-3 text-sm leading-relaxed text-stone-200">
                 Diario Imparcial es el medio que cruza varios diarios argentinos y te resume
                 las noticias sin opinión, con fuentes a la vista.
               </p>

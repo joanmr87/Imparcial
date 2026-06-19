@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  buildStickyClickbaitEdition,
   deriveClickbaitFallbackAnswer,
   extractArticleContextFromHtml,
   mergeClickbaitItemsForEdition,
@@ -327,5 +328,64 @@ describe("clickbait edition backfill", () => {
 
     expect(merged).toHaveLength(6)
     expect(merged.map(item => item.id)).toEqual(["today-1", "prev-1", "prev-2", "prev-3", "prev-4", "prev-5"])
+  })
+})
+
+describe("buildStickyClickbaitEdition", () => {
+  // Title/answer pairs proven renderable by the sanitizer (concrete answers).
+  const carried = [
+    makeClickbaitItem("c1", "Quién será el reemplazante de Marchesín en Boca", "Leandro Brey", 10),
+    makeClickbaitItem("c2", "A cuánto cotiza el dólar blue hoy", "$1.425", 20),
+    makeClickbaitItem("c3", "Dónde jugará Argentina su próximo partido", "en la Bombonera", 30),
+    makeClickbaitItem("c4", "Hasta cuándo sigue la ola de calor en Buenos Aires", "hasta el jueves", 40),
+    makeClickbaitItem("c5", "Cuáles son las ubicaciones gratis para ver a Colapinto", "Palermo", 50),
+    makeClickbaitItem("c6", "Quién ganó el premio mayor del sorteo de anoche", "un jubilado de Rosario", 60),
+  ]
+
+  it("keeps the existing set untouched when there are no fresh items", () => {
+    const edition = buildStickyClickbaitEdition([], carried, [])
+
+    expect(edition.map(item => item.id)).toEqual(["c1", "c2", "c3", "c4", "c5", "c6"])
+  })
+
+  it("brings new catches to the front and keeps carried items, capped at the max", () => {
+    const fresh = [
+      makeClickbaitItem("new-1", "Quién dirigirá a la selección en el amistoso", "Walter Samuel", 5),
+      makeClickbaitItem("new-2", "Cuánto aumenta el subte desde el lunes", "$757", 99),
+    ]
+
+    const edition = buildStickyClickbaitEdition(fresh, carried, [])
+
+    // Newcomers lead (ranked desc), carried follow in order, total capped at 9.
+    expect(edition).toHaveLength(8)
+    expect(edition.slice(0, 2).map(item => item.id)).toEqual(["new-2", "new-1"])
+    expect(edition.slice(2).map(item => item.id)).toEqual(["c1", "c2", "c3", "c4", "c5", "c6"])
+  })
+
+  it("never duplicates a fresh item that is already carried", () => {
+    const fresh = [
+      makeClickbaitItem("c3", "Dónde jugará Argentina su próximo partido", "en la Bombonera", 30),
+    ]
+
+    const edition = buildStickyClickbaitEdition(fresh, carried, [])
+
+    expect(edition.filter(item => item.id === "c3")).toHaveLength(1)
+    expect(edition).toHaveLength(6)
+  })
+
+  it("tops up to the floor of 6 from the backfill pool", () => {
+    const thin = carried.slice(0, 3)
+    const backfill = [
+      makeClickbaitItem("b1", "Hasta cuándo sigue la ola de calor en Buenos Aires", "hasta el jueves", 12),
+      makeClickbaitItem("b2", "Cuáles son las ubicaciones gratis para ver a Colapinto", "Palermo", 80),
+      makeClickbaitItem("b3", "Quién ganó el premio mayor del sorteo de anoche", "un jubilado de Rosario", 4),
+    ]
+
+    const edition = buildStickyClickbaitEdition([], thin, backfill)
+
+    expect(edition).toHaveLength(6)
+    expect(edition.slice(0, 3).map(item => item.id)).toEqual(["c1", "c2", "c3"])
+    // Highest-ranked backfill fills first.
+    expect(edition.slice(3).map(item => item.id)).toEqual(["b2", "b1", "b3"])
   })
 })

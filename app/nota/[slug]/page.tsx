@@ -5,14 +5,13 @@ import { EditorialPromise } from "@/components/editorial-promise"
 import { Header } from "@/components/header"
 import { SiteFooter } from "@/components/site-footer"
 import { TransparencyPanel } from "@/components/transparency-panel"
-import { findPublishedArticleBySlug, listPublishedArticles } from "@/lib/articles"
-import { getGeneratedEditorialStock } from "@/lib/editorial-stock"
+import { findPublishedArticleBySlug } from "@/lib/articles"
 import { formatArgentinaLongDate } from "@/lib/date-format"
+import { categoryDisplayLabel, inferCategoryFromArticle } from "@/lib/news-categories"
 import { Separator } from "@/components/ui/separator"
 import type { FactClaim, ImpartialArticle } from "@/lib/types"
 
 export const revalidate = 1800
-export const dynamic = "force-dynamic"
 // ISR regeneration may fetch live feeds as fallback; see app/page.tsx.
 export const maxDuration = 60
 
@@ -58,26 +57,11 @@ function buildReaderGuide(article: ImpartialArticle) {
   ]
 }
 
-export async function generateStaticParams() {
-  const [published, generated] = await Promise.allSettled([
-    listPublishedArticles(),
-    getGeneratedEditorialStock(),
-  ])
-  const slugs = new Set<string>()
-
-  if (published.status === "fulfilled") {
-    for (const article of published.value.articles) {
-      if (article.slug) slugs.add(article.slug)
-    }
-  }
-
-  if (generated.status === "fulfilled") {
-    for (const article of generated.value) {
-      if (article.slug) slugs.add(article.slug)
-    }
-  }
-
-  return [...slugs].map(slug => ({ slug }))
+// Notes are generated on first request and then cached by ISR (revalidate
+// above). Prerendering them all at build time made deploys fragile when
+// Supabase hiccuped, so we let them render lazily instead.
+export function generateStaticParams() {
+  return []
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
@@ -100,6 +84,10 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const sourceCount = article.sources?.length || article.sourceCount || 3
   const sourceTags = [...new Set((article.sources || []).map(source => source.name))]
   const readerGuide = buildReaderGuide(article)
+  const categoryLabel = categoryDisplayLabel(inferCategoryFromArticle(article))
+  const statusLabel = factStatusLabel(
+    article.status === "confirmed" || article.status === "disputed" ? article.status : "developing"
+  )
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(214,203,184,0.18),_transparent_40%),linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(250,247,241,0.94))]">
@@ -123,7 +111,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             Inicio
           </Link>
           <span className="mx-2">/</span>
-          <span>{article.category}</span>
+          <span>{categoryLabel}</span>
         </nav>
 
         <div className="grid gap-10 lg:grid-cols-3 lg:gap-12">
@@ -131,7 +119,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           <article className="lg:col-span-2">
             <header className="mb-10">
               <p className="text-xs tracking-widest text-muted-foreground uppercase">
-                {article.category}
+                {categoryLabel}
               </p>
 
               <h1 className="mt-3 font-serif text-3xl font-semibold leading-tight text-foreground md:text-4xl lg:text-5xl text-balance">
@@ -142,12 +130,12 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 {article.summary}
               </p>
 
-              <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                 <time dateTime={article.createdAt}>{formattedDate}</time>
                 <span className="text-border">|</span>
                 <span>{sourceCount} fuentes</span>
                 <span className="text-border">|</span>
-                <span>{factStatusLabel(article.status === "confirmed" ? "confirmed" : article.status === "disputed" ? "disputed" : "developing")}</span>
+                <span>{statusLabel}</span>
               </div>
 
               {sourceTags.length > 0 && (
@@ -180,20 +168,20 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
             <Separator className="mb-10" />
 
-            <section className="mb-10 rounded-[1.75rem] border border-[#bfd3c2] bg-[#eaf4ee] px-5 py-6 md:px-7">
-              <p className="text-xs tracking-[0.2em] text-[#587565] uppercase">
-                Guia rapida
+            <section className="mb-10 rounded-[1.75rem] border border-border/80 bg-secondary/40 px-5 py-6 md:px-7">
+              <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+                Guía rápida
               </p>
-              <h2 className="mt-2 font-serif text-2xl font-semibold text-[#1f352b]">
+              <h2 className="mt-2 font-serif text-2xl font-semibold text-foreground">
                 La nota en cuatro preguntas
               </h2>
               <div className="mt-5 grid gap-3 md:grid-cols-2">
                 {readerGuide.map(item => (
-                  <article key={item.title} className="rounded-[1.15rem] border border-[#c8ddd2] bg-white/72 px-4 py-4">
-                    <h3 className="text-sm font-semibold text-[#1f352b]">
+                  <article key={item.title} className="rounded-[1.15rem] border border-border/70 bg-background/70 px-4 py-4">
+                    <h3 className="text-sm font-semibold text-foreground">
                       {item.title}
                     </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-[#597369]">
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                       {item.body}
                     </p>
                   </article>

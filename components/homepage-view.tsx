@@ -48,16 +48,16 @@ function distinctSourceCount(articles: ImpartialArticle[]): number {
 
 const manifestoPillars = [
   {
-    title: "Cruza versiones",
-    body: "Ninguna nota nace de un solo medio: cada síntesis cruza varias coberturas y separa hechos del ruido editorial.",
+    title: "Sin bajada de línea",
+    body: "Ninguna nota nace de un solo diario. Cruzamos varias coberturas del mismo hecho y separamos lo que pasó del ruido editorial.",
   },
   {
     title: "Trazable",
-    body: "Cada nota muestra de qué diarios salió la información, qué está confirmado y qué sigue en disputa.",
+    body: "Cada nota muestra de qué medios salió la información, qué está confirmado y qué todavía está en disputa.",
   },
   {
     title: "Te devuelve tiempo",
-    body: "Leés una versión clara y corta en lugar de abrir cinco diarios para entender el mismo hecho.",
+    body: "Una versión clara y corta en lugar de abrir cinco diarios para entender la misma noticia.",
   },
 ]
 
@@ -114,42 +114,43 @@ export async function HomepageView({
         )}
 
         {!activeSection && (
-          <section className="mb-10 rounded-[2rem] border border-border bg-card/70 px-6 py-7 shadow-[0_12px_34px_rgba(28,28,28,0.04)] md:px-8">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-                  Hecho con IA, explicado con fuentes
-                </p>
-                <h2 className="mt-2 font-serif text-2xl font-semibold leading-snug text-foreground md:text-3xl text-balance">
-                  Leemos todos los diarios para que vos leas la noticia
-                </h2>
-                <p className="mt-3 text-sm leading-relaxed text-foreground/80 md:text-base">
-                  Diario Imparcial cruza noticias de distintos medios argentinos para darte una versión
-                  más clara, corta y verificable de lo que pasó. Menos ruido, más contexto y fuentes a la vista.
-                </p>
-              </div>
-              <div className="flex flex-col items-start gap-3 md:items-end">
-                {articles.length > 0 && (
-                  <p className="text-xs leading-relaxed text-muted-foreground md:text-right">
-                    Edición actual: {articles.length} síntesis
-                    {sourceCount > 1 ? ` · ${sourceCount} medios cruzados` : ""}
-                  </p>
-                )}
+          <section className="mb-10 overflow-hidden rounded-[2rem] border border-border bg-card/70 shadow-[0_18px_44px_rgba(28,28,28,0.05)]">
+            <div className="px-6 py-9 md:px-10 md:py-11">
+              <p className="text-[11px] font-medium tracking-[0.28em] text-muted-foreground uppercase">
+                Diario Imparcial · Periodismo sin bajada de línea
+              </p>
+              <h2 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-[1.08] text-foreground md:text-5xl text-balance">
+                Leemos todos los diarios para que vos leas la noticia
+              </h2>
+              <p className="mt-5 max-w-2xl text-base leading-relaxed text-foreground/80 md:text-lg">
+                Cada nota cruza la cobertura de varios medios argentinos sobre el mismo hecho, separa lo
+                confirmado del ruido editorial y te deja una versión clara y corta, con las fuentes a la
+                vista. Las conclusiones las sacás vos.
+              </p>
+
+              <div className="mt-7 flex flex-wrap items-center gap-3">
                 <Link
                   href="/metodologia"
                   prefetch={false}
-                  className="inline-flex rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+                  className="inline-flex items-center rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/85"
                 >
-                  Ver metodología
+                  Cómo lo hacemos
                 </Link>
+                {articles.length > 0 && (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs text-muted-foreground">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    {articles.length} síntesis hoy
+                    {sourceCount > 1 ? ` · ${sourceCount} medios cruzados` : ""}
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 border-t border-border/70 pt-6 md:grid-cols-3">
+            <div className="grid gap-px border-t border-border/70 bg-border/50 md:grid-cols-3">
               {manifestoPillars.map(pillar => (
-                <div key={pillar.title}>
-                  <p className="text-sm font-semibold text-foreground">{pillar.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground md:text-sm">
+                <div key={pillar.title} className="bg-card/80 px-6 py-5 md:px-8 md:py-6">
+                  <p className="font-serif text-base font-semibold text-foreground">{pillar.title}</p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                     {pillar.body}
                   </p>
                 </div>

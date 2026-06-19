@@ -47,22 +47,11 @@ const CLICKBAIT_SNAPSHOT_TYPE = "clickbait"
 const CLICKBAIT_SNAPSHOT_SLOT = "daily"
 const CLICKBAIT_TARGET_ITEMS = 6
 const CLICKBAIT_MAX_ITEMS = 9
-const CLICKBAIT_BACKFILL_DAYS = 7
-const PUBLISHED_CLICKBAIT_MAX_AGE_DAYS = 3
+// History to look back through when topping the edition up to the floor.
+const CLICKBAIT_BACKFILL_DAYS = 14
 
 function isMissingIncrementalCacheError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("incrementalCache missing")
-}
-
-function daysBetweenDateKeys(left: string, right: string): number {
-  const leftTime = new Date(`${left}T00:00:00Z`).getTime()
-  const rightTime = new Date(`${right}T00:00:00Z`).getTime()
-  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return Number.POSITIVE_INFINITY
-  return Math.abs(rightTime - leftTime) / (1000 * 60 * 60 * 24)
-}
-
-function isRecentClickbaitSnapshot(snapshotDate: string, currentDate: string): boolean {
-  return daysBetweenDateKeys(snapshotDate, currentDate) <= PUBLISHED_CLICKBAIT_MAX_AGE_DAYS
 }
 
 const HINT_PATTERNS = [
@@ -1012,6 +1001,50 @@ export function mergeClickbaitItemsForEdition(
   return merged
 }
 
+// Sticky edition: the section keeps the items it already had and only swaps in
+// genuinely new catches. When nothing fresh comes in, the existing set stays
+// untouched; when fresh items appear they enter at the front, pushing the
+// oldest carried items out only once the cap is reached. The floor is held by
+// topping up from `backfillItems` (recent history / emergency build).
+export function buildStickyClickbaitEdition(
+  freshItems: ClickbaitBusterItem[],
+  carriedItems: ClickbaitBusterItem[],
+  backfillItems: ClickbaitBusterItem[] = [],
+  options: { min?: number; max?: number } = {}
+): ClickbaitBusterItem[] {
+  const min = options.min ?? CLICKBAIT_TARGET_ITEMS
+  const max = options.max ?? CLICKBAIT_MAX_ITEMS
+
+  const renderableCarried = carriedItems.filter(isRenderableClickbaitItem)
+  const carriedIds = new Set(renderableCarried.map(item => item.id))
+
+  const newcomers = dedupeClickbaitItems(freshItems.filter(isRenderableClickbaitItem))
+    .filter(item => !carriedIds.has(item.id))
+    .sort((left, right) => clickbaitRankingScore(right) - clickbaitRankingScore(left))
+
+  const edition: ClickbaitBusterItem[] = []
+  const seen = new Set<string>()
+  const pushUnique = (item: ClickbaitBusterItem) => {
+    if (edition.length >= max || seen.has(item.id)) return
+    seen.add(item.id)
+    edition.push(item)
+  }
+
+  // Newest catches lead, then everything we were already showing, in order.
+  for (const item of newcomers) pushUnique(item)
+  for (const item of renderableCarried) pushUnique(item)
+
+  // Hold the floor with recent history / emergency builds, ranked.
+  if (edition.length < min) {
+    const backfill = dedupeClickbaitItems(backfillItems.filter(isRenderableClickbaitItem))
+      .filter(item => !seen.has(item.id))
+      .sort((left, right) => clickbaitRankingScore(right) - clickbaitRankingScore(left))
+    for (const item of backfill) pushUnique(item)
+  }
+
+  return edition
+}
+
 const getEmergencyClickbaitBusters = unstable_cache(
   buildFreshClickbaitBusters,
   ["clickbait-busters-emergency-v1"],
@@ -1024,25 +1057,46 @@ export async function refreshDailyClickbaitEdition(options: {
 } = {}): Promise<ClickbaitSnapshotPayload> {
   const snapshotDate = options.snapshotDate || getArgentinaDateKey()
 
-  if (!options.force) {
-    const existingSnapshot = await safeGetSiteSnapshot<ClickbaitSnapshotPayload>(
-      CLICKBAIT_SNAPSHOT_TYPE,
-      snapshotDate,
-      CLICKBAIT_SNAPSHOT_SLOT
-    )
-    if (existingSnapshot) {
-      return existingSnapshot.payload
-    }
+  const existingSnapshot = await safeGetSiteSnapshot<ClickbaitSnapshotPayload>(
+    CLICKBAIT_SNAPSHOT_TYPE,
+    snapshotDate,
+    CLICKBAIT_SNAPSHOT_SLOT
+  )
+  const existingItems = (existingSnapshot?.payload.items || []).filter(isRenderableClickbaitItem)
+
+  // A full edition already exists for today: leave it as is unless forced.
+  if (!options.force && existingItems.length >= CLICKBAIT_TARGET_ITEMS) {
+    return existingSnapshot!.payload
   }
 
-  const previousItems = await getHistoricalClickbaitItems(snapshotDate)
+  // Carry whatever the section is already showing so it stays sticky across runs.
+  const latestSnapshot = existingItems.length
+    ? null
+    : await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
+        CLICKBAIT_SNAPSHOT_TYPE,
+        CLICKBAIT_SNAPSHOT_SLOT
+      )
+  const carriedItems = existingItems.length
+    ? existingItems
+    : (latestSnapshot?.payload.items || []).filter(isRenderableClickbaitItem)
+
+  const historicalItems = await getHistoricalClickbaitItems(snapshotDate)
   const freshItems = await buildFreshClickbaitBusters()
-  const items = mergeClickbaitItemsForEdition(freshItems, previousItems)
+
+  let items = buildStickyClickbaitEdition(freshItems, carriedItems, historicalItems)
+
+  // Last resort to hold the 6-item floor: a cached emergency build.
+  if (items.length < CLICKBAIT_TARGET_ITEMS) {
+    const emergencyItems = await getEmergencyClickbaitBusters()
+    items = buildStickyClickbaitEdition(freshItems, items, emergencyItems)
+  }
+
+  const freshIds = new Set(freshItems.map(item => item.id))
   const payload: ClickbaitSnapshotPayload = {
     generatedAt: new Date().toISOString(),
     snapshotDate,
-    freshCount: freshItems.length,
-    reusedCount: Math.max(0, items.length - freshItems.length),
+    freshCount: items.filter(item => freshIds.has(item.id)).length,
+    reusedCount: items.filter(item => !freshIds.has(item.id)).length,
     items,
   }
 
@@ -1065,6 +1119,7 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
   )
   const todayItems = (todaySnapshot?.payload.items || []).filter(isRenderableClickbaitItem)
 
+  // Today's edition is already complete and clean: show it untouched (sticky).
   if (
     todaySnapshot
     && todayItems.length >= CLICKBAIT_TARGET_ITEMS
@@ -1073,44 +1128,32 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
     return todaySnapshot.payload
   }
 
-  const previousItems = await getHistoricalClickbaitItems(snapshotDate)
+  // Otherwise repair from the last edition + history; the section never expires
+  // to empty, it keeps the most recent set we ever showed.
+  const latestSnapshot = todaySnapshot
+    ? null
+    : await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
+        CLICKBAIT_SNAPSHOT_TYPE,
+        CLICKBAIT_SNAPSHOT_SLOT
+      )
+  const latestItems = (latestSnapshot?.payload.items || []).filter(isRenderableClickbaitItem)
+  const historicalItems = await getHistoricalClickbaitItems(snapshotDate)
 
-  if (todaySnapshot) {
-    const repairedItems = mergeClickbaitItemsForEdition(todayItems, previousItems)
+  const carriedItems = [...todayItems, ...latestItems]
+  let items = buildStickyClickbaitEdition([], carriedItems, historicalItems)
 
-    return {
-      ...todaySnapshot.payload,
-      reusedCount: Math.max(0, repairedItems.length - todayItems.length),
-      items: repairedItems,
-    }
+  if (items.length < CLICKBAIT_TARGET_ITEMS) {
+    const emergencyItems = await getEmergencyClickbaitBusters()
+    items = buildStickyClickbaitEdition([], items, emergencyItems)
   }
 
-  const latestSnapshot = await safeGetLatestSiteSnapshot<ClickbaitSnapshotPayload>(
-    CLICKBAIT_SNAPSHOT_TYPE,
-    CLICKBAIT_SNAPSHOT_SLOT
-  )
-
-  if (
-    latestSnapshot?.payload.items.length &&
-    isRecentClickbaitSnapshot(latestSnapshot.snapshotDate, snapshotDate)
-  ) {
-    const latestItems = latestSnapshot.payload.items.filter(isRenderableClickbaitItem)
-    const fallbackItems = latestSnapshot.snapshotDate === snapshotDate
-      ? previousItems
-      : await getHistoricalClickbaitItems(latestSnapshot.snapshotDate)
-
-    return {
-      ...latestSnapshot.payload,
-      items: mergeClickbaitItemsForEdition(latestItems, fallbackItems),
-    }
-  }
-
+  const basePayload = todaySnapshot?.payload || latestSnapshot?.payload
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt: basePayload?.generatedAt || new Date().toISOString(),
     snapshotDate,
-    freshCount: 0,
-    reusedCount: 0,
-    items: [],
+    freshCount: basePayload?.freshCount ?? 0,
+    reusedCount: Math.max(0, items.length - todayItems.length),
+    items,
   }
 }
 
