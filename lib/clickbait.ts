@@ -1139,13 +1139,12 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
   const latestItems = (latestSnapshot?.payload.items || []).filter(isRenderableClickbaitItem)
   const historicalItems = await getHistoricalClickbaitItems(snapshotDate)
 
+  // Render path only reads persisted snapshots + history — cheap DB work. The
+  // expensive build (OpenAI + article scraping) that holds the floor of 6 runs
+  // exclusively in refreshDailyClickbaitEdition (the cron, 300s budget). Doing
+  // it here would block the homepage render and time the function out.
   const carriedItems = [...todayItems, ...latestItems]
-  let items = buildStickyClickbaitEdition([], carriedItems, historicalItems)
-
-  if (items.length < CLICKBAIT_TARGET_ITEMS) {
-    const emergencyItems = await getEmergencyClickbaitBusters()
-    items = buildStickyClickbaitEdition([], items, emergencyItems)
-  }
+  const items = buildStickyClickbaitEdition([], carriedItems, historicalItems)
 
   const basePayload = todaySnapshot?.payload || latestSnapshot?.payload
   return {

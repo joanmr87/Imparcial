@@ -4,8 +4,8 @@ import { HOME_SECTION_ORDER, normalizeSectionSlug } from "@/lib/news-categories"
 
 export const revalidate = 900
 export const dynamic = "force-dynamic"
-// ISR regeneration may fetch live feeds as fallback; see app/page.tsx.
-export const maxDuration = 60
+// Cold-cache live-feed fallback can exceed 60s; see app/page.tsx.
+export const maxDuration = 300
 
 interface SectionPageProps {
   params: Promise<{ slug: string }>

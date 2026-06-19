@@ -2,9 +2,9 @@ import { HomepageView } from "@/components/homepage-view"
 
 export const revalidate = 900
 export const dynamic = "force-dynamic"
-// ISR regeneration may fetch live feeds as fallback; the default function
-// duration kills that mid-flight and leaves a stale page being served forever.
-export const maxDuration = 60
+// On a cold cache the page may fetch live feeds as fallback; Fluid Compute
+// allows up to 300s, so give it room instead of timing out at 60s (504).
+export const maxDuration = 300
 
 export default function HomePage() {
   return <HomepageView enableLegacySectionRedirect />
