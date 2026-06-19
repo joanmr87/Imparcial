@@ -6,6 +6,7 @@ import {
   mergeClickbaitItemsForEdition,
   sanitizeClickbaitAnswer,
 } from "../lib/clickbait"
+import { CLICKBAIT_SEED_ITEMS } from "../lib/clickbait-seed"
 import type { RSSItem } from "../lib/types"
 
 function makeItem(overrides: Partial<RSSItem>): RSSItem {
@@ -371,6 +372,14 @@ describe("buildStickyClickbaitEdition", () => {
 
     expect(edition.filter(item => item.id === "c3")).toHaveLength(1)
     expect(edition).toHaveLength(6)
+  })
+
+  it("guarantees a non-empty edition from the bundled seed alone", () => {
+    // With zero fresh and zero carried items, the seed must still fill the floor
+    // so the section is never empty (every seed item must be renderable).
+    const edition = buildStickyClickbaitEdition([], [], CLICKBAIT_SEED_ITEMS)
+
+    expect(edition.length).toBeGreaterThanOrEqual(6)
   })
 
   it("tops up to the floor of 6 from the backfill pool", () => {

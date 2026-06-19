@@ -3,6 +3,7 @@ import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { load } from "cheerio"
 import { z } from "zod"
+import { CLICKBAIT_SEED_ITEMS } from "./clickbait-seed"
 import { getLatestFeedSnapshot } from "./feed-store"
 import { inferCategoryFromItem } from "./news-categories"
 import { getArgentinaDateKey, safeGetLatestSiteSnapshot, safeGetSiteSnapshot, safeUpsertSiteSnapshot } from "./site-snapshots"
@@ -1085,10 +1086,14 @@ export async function refreshDailyClickbaitEdition(options: {
 
   let items = buildStickyClickbaitEdition(freshItems, carriedItems, historicalItems)
 
-  // Last resort to hold the 6-item floor: a cached emergency build.
+  // Last resort to hold the 6-item floor: a cached emergency build, then the
+  // bundled seed so a persisted edition is never published below the floor.
   if (items.length < CLICKBAIT_TARGET_ITEMS) {
     const emergencyItems = await getEmergencyClickbaitBusters()
-    items = buildStickyClickbaitEdition(freshItems, items, emergencyItems)
+    items = buildStickyClickbaitEdition(freshItems, items, [
+      ...emergencyItems,
+      ...CLICKBAIT_SEED_ITEMS,
+    ])
   }
 
   const freshIds = new Set(freshItems.map(item => item.id))
@@ -1143,8 +1148,13 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
   // expensive build (OpenAI + article scraping) that holds the floor of 6 runs
   // exclusively in refreshDailyClickbaitEdition (the cron, 300s budget). Doing
   // it here would block the homepage render and time the function out.
+  // The bundled seed is the last-resort backfill so the section is NEVER empty,
+  // even before the first persisted edition exists.
   const carriedItems = [...todayItems, ...latestItems]
-  const items = buildStickyClickbaitEdition([], carriedItems, historicalItems)
+  const items = buildStickyClickbaitEdition([], carriedItems, [
+    ...historicalItems,
+    ...CLICKBAIT_SEED_ITEMS,
+  ])
 
   const basePayload = todaySnapshot?.payload || latestSnapshot?.payload
   return {
