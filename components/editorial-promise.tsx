@@ -22,7 +22,7 @@ export function EditorialPromise({
       <div
         className={[
           "inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border px-4 py-2",
-          "border-[#bfd3c2] bg-[#e7f1eb] text-[#2f4e3f]",
+          "border-brand-green-border bg-brand-green-soft text-brand-green",
           compact ? "text-[11px] leading-relaxed md:text-xs" : "text-xs leading-relaxed md:text-sm",
         ].join(" ")}
       >

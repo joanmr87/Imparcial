@@ -1,5 +1,5 @@
-import Link from "next/link"
 import { MessageCircle } from "lucide-react"
+import { BrandLogo } from "@/components/brand-logo"
 
 interface SiteFooterProps {
   className?: string
@@ -13,18 +13,16 @@ export function SiteFooter({ className = "" }: SiteFooterProps) {
     <footer className={`border-t border-border ${className}`.trim()}>
       <div className="mx-auto max-w-5xl px-4 py-8">
         <div className="grid gap-6 text-center md:grid-cols-[1fr_1.1fr_1fr] md:text-left">
-          <div>
-            <Link href="/" prefetch={false} className="font-serif text-lg font-semibold text-foreground transition-colors hover:text-muted-foreground">
-              Diario Imparcial
-            </Link>
-            <p className="mt-1 text-xs text-muted-foreground">
+          <div className="flex flex-col items-center md:items-start">
+            <BrandLogo variant="compact" />
+            <p className="mt-2 text-xs text-muted-foreground">
               Menos ruido. Más contexto. Fuentes a la vista.
             </p>
             <a
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#bfd3c2] bg-[#e7f1eb] px-3 py-1.5 text-xs font-semibold text-[#2f4e3f] transition-colors hover:bg-[#d8eadf]"
+              className="mt-4 inline-flex items-center gap-2 rounded-full border border-brand-green-border bg-brand-green-soft px-3 py-1.5 text-xs font-semibold text-brand-green transition-colors hover:bg-brand-green-softer"
             >
               <MessageCircle className="h-3.5 w-3.5" />
               Recibir resumen diario

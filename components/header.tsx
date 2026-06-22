@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Menu, MessageCircle, X } from "lucide-react"
+import { BrandLogo } from "@/components/brand-logo"
 import { EditorialPromise } from "@/components/editorial-promise"
 import { formatArgentinaLongDate } from "@/lib/date-format"
 
@@ -49,13 +50,9 @@ export function Header({ dateString }: HeaderProps) {
 
           {/* Logo */}
           <div className="py-8 text-center">
-            <Link href="/" prefetch={false} className="inline-block">
-              <h1 className="font-serif text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
-                Diario Imparcial
-              </h1>
-            </Link>
-            <p className="mt-2 text-sm tracking-[0.28em] text-muted-foreground uppercase">
-              La noticia, sin adjetivos
+            <BrandLogo variant="full" />
+            <p className="mt-4 text-sm tracking-[0.28em] text-muted-foreground uppercase">
+              Muchas fuentes. Una lectura clara.
             </p>
             <EditorialPromise compact />
           </div>
@@ -84,7 +81,7 @@ export function Header({ dateString }: HeaderProps) {
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#bfd3c2] bg-[#e7f1eb] px-3 py-1.5 text-xs font-semibold text-[#2f4e3f] transition-colors hover:bg-[#d8eadf]"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-brand-green-border bg-brand-green-soft px-3 py-1.5 text-xs font-semibold text-brand-green transition-colors hover:bg-brand-green-softer"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
                   Resumen diario
@@ -95,9 +92,7 @@ export function Header({ dateString }: HeaderProps) {
 
           {/* Mobile menu button */}
           <div className="flex items-center justify-between py-3 md:hidden">
-            <Link href="/" prefetch={false} className="font-serif text-base font-bold text-foreground">
-              Imparcial
-            </Link>
+            <BrandLogo variant="compact" />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="flex items-center gap-2 text-sm text-foreground"
@@ -128,7 +123,7 @@ export function Header({ dateString }: HeaderProps) {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mx-auto mt-5 flex w-fit items-center gap-2 rounded-full border border-[#bfd3c2] bg-[#e7f1eb] px-4 py-2 text-sm font-semibold text-[#2f4e3f]"
+                className="mx-auto mt-5 flex w-fit items-center gap-2 rounded-full border border-brand-green-border bg-brand-green-soft px-4 py-2 text-sm font-semibold text-brand-green"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <MessageCircle className="h-4 w-4" />

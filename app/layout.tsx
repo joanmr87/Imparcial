@@ -20,7 +20,7 @@ const siteUrl =
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : 'https://v0-ai-news-verification-ten.vercel.app')
 
-const tagline = 'Leemos todos los diarios para que vos leas la noticia'
+const tagline = 'Muchas fuentes. Una lectura clara.'
 const sharedDescription =
   'Diario argentino hecho con IA: cruza la cobertura de varios medios sobre el mismo hecho, resume sin opinión y muestra fuentes, coincidencias y puntos en disputa.'
 
