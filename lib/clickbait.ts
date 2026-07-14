@@ -9,6 +9,8 @@ import { inferCategoryFromItem } from "./news-categories"
 import { getArgentinaDateKey, safeGetLatestSiteSnapshot, safeGetSiteSnapshot, safeUpsertSiteSnapshot } from "./site-snapshots"
 import type { RSSItem } from "./types"
 
+const CLICKBAIT_AI_TIMEOUT_MS = 45_000
+
 export interface ClickbaitBusterItem {
   id: string
   title: string
@@ -115,6 +117,9 @@ const REJECT_PATTERNS = [
   /\b(var|offside|orsai|expulsi[oó]n)\b/i,
   /\b(?:era|es|fue)\s+penal\b/i,
   /\by por qu[eé]\b/i,
+  /\bqu[eé]\s+anticipa\b/i,
+  /\bcambio de modelo\b/i,
+  /\bqu[eé]\s+(significa|implica)\b/i,
 ]
 
 const ABSTRACT_LIST_PATTERNS = [
@@ -211,6 +216,13 @@ function requiresSplitAnswer(title: string): boolean {
 
   return /\b(escalas|cuotas|requisitos|documentos|formularios|montos|valores|pasos|fechas)\b/.test(title)
     && /\b y \b/.test(title)
+}
+
+function requiresExplanationAnswer(title: string): boolean {
+  return /\bpor que\b/.test(title)
+    || /\bque anticipa\b/.test(title)
+    || /\bcambio de modelo\b/.test(title)
+    || /\bque (significa|implica)\b/.test(title)
 }
 
 function supportsCompactListAnswer(title: string): boolean {
@@ -503,7 +515,7 @@ function answerMatchesTitleNeed(title: string, answer: string): boolean {
     return false
   }
 
-  if (/^[^a-z0-9]*por que\b/.test(normalizedTitle)) {
+  if (requiresExplanationAnswer(normalizedTitle)) {
     return looksLikeCausalAnswer(answer) && addsNewInformation(title, answer)
   }
 
@@ -816,6 +828,7 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
     try {
       const { object } = await generateObject({
         model: openai(process.env.OPENAI_MODEL || "gpt-5-nano"),
+        abortSignal: AbortSignal.timeout(CLICKBAIT_AI_TIMEOUT_MS),
         schema: clickbaitSelectionSchema,
         system: [
           "Sos editor de la seccion Te ahorramos el click de Diario Imparcial.",
@@ -848,8 +861,9 @@ export async function buildFreshClickbaitBusters(): Promise<ClickbaitBusterItem[
       for (const item of object.items) {
         if (!item.include) continue
 
-        const answer = truncateAnswer(item.answer)
-        if (!answer || !isValidClickbaitAnswer(answer, enrichedCandidates[Number(item.id.split(":")[1])]?.title)) continue
+        const candidateTitle = enrichedCandidates[Number(item.id.split(":")[1])]?.title
+        const answer = sanitizeClickbaitAnswer(truncateAnswer(item.answer), candidateTitle)
+        if (!answer) continue
 
         answersById.set(item.id, {
           answer,
@@ -907,7 +921,7 @@ function buildFallbackItems(candidates: ClickbaitCandidate[]): ClickbaitBusterIt
   const fallbackItems: ClickbaitBusterItem[] = candidates
     .map((item): (ClickbaitBusterItem & { heuristicScore: number }) | null => {
       const answer = deriveClickbaitFallbackAnswerFromContext(item, item.articleContext)
-      if (!answer || !isValidClickbaitAnswer(answer)) return null
+      if (!answer || !isValidClickbaitAnswer(answer, item.title)) return null
       const heuristicScore = heuristicImportanceScore(item)
       if (heuristicScore < 6) return null
 
@@ -1048,7 +1062,7 @@ export function buildStickyClickbaitEdition(
 
 const getEmergencyClickbaitBusters = unstable_cache(
   buildFreshClickbaitBusters,
-  ["clickbait-busters-emergency-v1"],
+  ["clickbait-busters-emergency-v2"],
   { revalidate: 60 * 60 * 12 }
 )
 
@@ -1168,7 +1182,7 @@ async function readPublishedClickbaitEdition(): Promise<ClickbaitSnapshotPayload
 
 const getCachedPublishedClickbaitEdition = unstable_cache(
   readPublishedClickbaitEdition,
-  ["published-clickbait-edition-v1"],
+  ["published-clickbait-edition-v2"],
   { revalidate: 900 }
 )
 

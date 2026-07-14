@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server"
 import { mockArticles } from "@/lib/mock-data"
+import { authorizeInternalRequest } from "@/lib/internal-auth"
 import { getEditorialSchemaStatus, upsertGeneratedArticle } from "@/lib/supabase-admin"
 
-export async function POST() {
+export async function POST(request: Request) {
+  const auth = authorizeInternalRequest(request)
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
+  }
+
   try {
     const schema = await getEditorialSchemaStatus()
 

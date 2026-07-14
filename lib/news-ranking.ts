@@ -4,6 +4,8 @@ import { z } from "zod"
 import { inferCategoryFromItem } from "./news-categories"
 import type { NewsCluster } from "./types"
 
+const RANKING_AI_TIMEOUT_MS = 25_000
+
 const clusterRankingSchema = z.object({
   items: z.array(
     z.object({
@@ -145,6 +147,7 @@ export async function rankClustersByRelevance(clusters: NewsCluster[]): Promise<
   try {
     const { object } = await generateObject({
       model: openai(process.env.OPENAI_MODEL || "gpt-5-nano"),
+      abortSignal: AbortSignal.timeout(RANKING_AI_TIMEOUT_MS),
       schema: clusterRankingSchema,
       system: [
         "Sos editor de portada de Diario Imparcial.",

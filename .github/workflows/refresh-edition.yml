@@ -8,18 +8,48 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-edition
+  cancel-in-progress: false
+
 jobs:
-  ingest:
+  refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [articles, clickbait]
     steps:
-      - name: Call ingest endpoint
+      - name: Validate configuration
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          response=$(curl -s -w "\n%{http_code}" --max-time 280 \
-            ${CRON_SECRET:+-H "Authorization: Bearer $CRON_SECRET"} \
-            "https://v0-ai-news-verification-ten.vercel.app/api/cron/ingest")
-          status=$(echo "$response" | tail -1)
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is missing in GitHub Actions."
+            exit 1
+          fi
+
+      - name: Refresh ${{ matrix.task }}
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TASK: ${{ matrix.task }}
+        run: |
+          status=$(curl --silent --show-error \
+            --connect-timeout 15 \
+            --max-time 230 \
+            --retry 2 \
+            --retry-delay 5 \
+            --retry-max-time 250 \
+            --retry-all-errors \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -o response.json \
+            -w "%{http_code}" \
+            "https://v0-ai-news-verification-ten.vercel.app/api/cron/ingest?task=$TASK")
           echo "HTTP $status"
-          echo "$response" | head -c 600
+          head -c 1200 response.json
+          echo
           [ "$status" = "200" ]

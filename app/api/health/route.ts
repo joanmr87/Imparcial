@@ -10,15 +10,11 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      environment: {
-        hasSupabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
-        hasSupabaseAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-        hasSupabaseServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-        hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY),
-        openAIModel: process.env.OPENAI_MODEL || "gpt-5-nano",
+      services: {
+        database: editorialSchema.ready && pipelineSchema.ready ? "ready" : "degraded",
+        editorial: editorialSchema.ready ? "ready" : "degraded",
+        pipeline: pipelineSchema.ready ? "ready" : "degraded",
       },
-      editorialSchema,
-      pipelineSchema,
     })
   } catch (error) {
     return NextResponse.json(

@@ -63,7 +63,7 @@ export function Header({ dateString }: HeaderProps) {
       <div className="sticky top-0 z-40 border-b border-border bg-background/95 shadow-[0_8px_24px_rgba(28,28,28,0.04)] backdrop-blur-md">
         <div className="mx-auto max-w-5xl px-4">
           {/* Desktop nav */}
-          <nav className="hidden md:block">
+          <nav aria-label="Secciones principales" className="hidden md:block">
             <ul className="flex items-center justify-center gap-8 py-3">
               {navItems.map((item) => (
                 <li key={item.href}>
@@ -95,6 +95,9 @@ export function Header({ dateString }: HeaderProps) {
             <BrandLogo variant="compact" />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              type="button"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
               className="flex items-center gap-2 text-sm text-foreground"
             >
               {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -104,7 +107,11 @@ export function Header({ dateString }: HeaderProps) {
 
           {/* Mobile nav */}
           {mobileMenuOpen && (
-            <nav className="border-t border-border py-4 md:hidden">
+            <nav
+              id="mobile-navigation"
+              aria-label="Secciones principales"
+              className="border-t border-border py-4 md:hidden"
+            >
               <ul className="flex flex-col items-center gap-4">
                 {navItems.map((item) => (
                   <li key={item.href}>

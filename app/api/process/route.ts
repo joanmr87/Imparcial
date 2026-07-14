@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { generateImpartialArticle } from "@/lib/editorial"
+import { authorizeInternalRequest } from "@/lib/internal-auth"
 import { getEditorialSchemaStatus, upsertGeneratedArticle } from "@/lib/supabase-admin"
 import type { SourceArticleInput } from "@/lib/types"
 
@@ -10,6 +11,11 @@ function getErrorMessage(error: unknown) {
 }
 
 export async function POST(req: Request) {
+  const auth = authorizeInternalRequest(req)
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
+  }
+
   try {
     const body = await req.json() as {
       topic?: string

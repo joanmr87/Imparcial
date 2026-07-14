@@ -274,6 +274,22 @@ describe("clickbait answer sanitizing", () => {
       )
     ).toBe("Esguince leve")
   })
+
+  it("rejects loose figures when the title asks for analysis instead of a datum", () => {
+    expect(
+      sanitizeClickbaitAnswer(
+        "US$9.537 millones",
+        "Nuevo récord de dólares por exportaciones mientras cae la importación: ¿cambio de modelo?"
+      )
+    ).toBeNull()
+
+    expect(
+      sanitizeClickbaitAnswer(
+        "1.451 pesos",
+        "El dólar oficial ya acumula un salto del 3% en junio: ¿por qué sube y qué anticipa el mercado?"
+      )
+    ).toBeNull()
+  })
 })
 
 describe("clickbait edition backfill", () => {

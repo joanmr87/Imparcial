@@ -1,44 +1,45 @@
 import { revalidatePath } from "next/cache"
 import { NextResponse } from "next/server"
 import { refreshDailyClickbaitEdition } from "@/lib/clickbait"
+import { authorizeInternalRequest } from "@/lib/internal-auth"
 import { generatePipelineRun } from "@/lib/pipeline"
 
-function isAuthorized(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET
-  if (!expectedSecret) return true
-
-  const authHeader = request.headers.get("authorization")
-  return authHeader === `Bearer ${expectedSecret}`
-}
-
-// Generating a full edition with AI takes well over 60s; Fluid Compute
-// allows up to 300s on every plan.
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+  const auth = authorizeInternalRequest(request)
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
+  }
+
+  const requestedTask = new URL(request.url).searchParams.get("task") || "all"
+  if (!["all", "articles", "clickbait"].includes(requestedTask)) {
+    return NextResponse.json({ success: false, error: "Invalid task" }, { status: 400 })
   }
 
   try {
+    const shouldRefreshArticles = requestedTask !== "clickbait"
+    const shouldRefreshClickbait = requestedTask !== "articles"
     const [pipelineResult, clickbaitResult] = await Promise.allSettled([
-      generatePipelineRun({
-        minSources: 2,
-        // 12 notas por corrida entran holgadas en los 60s de maxDuration;
-        // la frecuencia del cron compensa el volumen.
-        limit: 12,
-        generateArticles: true,
-        persist: true,
-      }),
-      refreshDailyClickbaitEdition(),
+      shouldRefreshArticles
+        ? generatePipelineRun({
+            minSources: 2,
+            limit: 12,
+            generateArticles: true,
+            persist: true,
+          })
+        : Promise.resolve(null),
+      shouldRefreshClickbait
+        ? refreshDailyClickbaitEdition()
+        : Promise.resolve(null),
     ])
 
-    if (pipelineResult.status === "rejected") {
+    if (shouldRefreshArticles && pipelineResult.status === "rejected") {
       throw pipelineResult.reason
     }
 
-    const result = pipelineResult.value
+    const result = pipelineResult.status === "fulfilled" ? pipelineResult.value : null
     const clickbaitEdition = clickbaitResult.status === "fulfilled" ? clickbaitResult.value : null
 
     revalidatePath("/")
@@ -46,13 +47,14 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      timestamp: result.timestamp,
-      generatedCount: result.generated.length,
+      task: requestedTask,
+      timestamp: result?.timestamp || new Date().toISOString(),
+      generatedCount: result?.generated.length || 0,
       clickbaitCount: clickbaitEdition?.items.length || 0,
-      errorCount: result.errors.length,
+      errorCount: result?.errors.length || 0,
       warnings: [
-        ...result.warnings,
-        ...(clickbaitResult.status === "rejected"
+        ...(result?.warnings || []),
+        ...(shouldRefreshClickbait && clickbaitResult.status === "rejected"
           ? [{
               code: "clickbait_failed",
               message: clickbaitResult.reason instanceof Error
@@ -61,15 +63,15 @@ export async function GET(request: Request) {
             }]
           : []),
       ],
-      schema: result.schema,
+      schema: result?.schema || null,
       clickbaitEdition,
-      generated: result.generated.map(item => ({
+      generated: (result?.generated || []).map(item => ({
         clusterId: item.cluster.id,
         title: item.article.title,
         slug: item.article.slug,
         persisted: item.persisted,
       })),
-      errors: result.errors,
+      errors: result?.errors || [],
     })
   } catch (error) {
     return NextResponse.json(

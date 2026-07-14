@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Playfair_Display, Source_Sans_3 } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const playfair = Playfair_Display({ 
@@ -65,6 +66,7 @@ export default function RootLayout({
     <html lang="es">
       <body className={`${sourceSans.variable} ${playfair.variable} font-sans antialiased`}>
         {children}
+        <Analytics />
       </body>
     </html>
   )

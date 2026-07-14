@@ -38,6 +38,8 @@ const editorialSchema = z.object({
   ).max(5),
 })
 
+const EDITORIAL_AI_TIMEOUT_MS = 70_000
+
 const SYSTEM_PROMPT = `Eres el editor de Diario Imparcial, un diario digital argentino hecho con IA.
 
 Tu trabajo es combinar coberturas de varios medios sobre el mismo hecho y producir una sintesis periodistica legible y estrictamente neutral.
@@ -438,6 +440,7 @@ export async function generateImpartialArticle(
 
       const { object, usage } = await generateObject({
         model: openai(modelId),
+        abortSignal: AbortSignal.timeout(EDITORIAL_AI_TIMEOUT_MS),
         schema: editorialSchema,
         schemaName: "impartial_article",
         system: SYSTEM_PROMPT,

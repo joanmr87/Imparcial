@@ -76,6 +76,7 @@ export async function HomepageView({
   const sidebar = articles.slice(3, 12)
   const remainingSections = activeSection ? [] : sections
   const sourceCount = distinctSourceCount(articles)
+  const latestSignalLabel = latestArticleSignalLabel(articles)
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(214,203,184,0.22),_transparent_38%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(250,247,241,0.96))]">
@@ -95,9 +96,9 @@ export async function HomepageView({
             </p>
             <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="font-serif text-2xl font-semibold text-foreground">
+                <h1 className="font-serif text-2xl font-semibold text-foreground">
                   {categoryDisplayLabel(activeSectionLabel || sections[0]?.label || "Sección")}
-                </h2>
+                </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Una edición enfocada en esa agenda, armada solo con síntesis construidas desde varias coberturas.
                 </p>
@@ -119,9 +120,9 @@ export async function HomepageView({
               <p className="text-[11px] font-medium tracking-[0.28em] text-muted-foreground uppercase">
                 Diario Imparcial · Periodismo sin bajada de línea
               </p>
-              <h2 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-[1.08] text-foreground md:text-5xl text-balance">
+              <h1 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-[1.08] text-foreground md:text-5xl text-balance">
                 Leemos todos los diarios para que vos leas la noticia
-              </h2>
+              </h1>
               <p className="mt-5 max-w-2xl text-base leading-relaxed text-foreground/80 md:text-lg">
                 Cada nota cruza la cobertura de varios medios argentinos sobre el mismo hecho, separa lo
                 confirmado del ruido editorial y te deja una versión clara y corta, con las fuentes a la
@@ -139,8 +140,9 @@ export async function HomepageView({
                 {articles.length > 0 && (
                   <span className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs text-muted-foreground">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    {articles.length} síntesis hoy
+                    {articles.length} síntesis
                     {sourceCount > 1 ? ` · ${sourceCount} medios cruzados` : ""}
+                    {latestSignalLabel ? ` · actualizada ${latestSignalLabel}` : ""}
                   </span>
                 )}
               </div>

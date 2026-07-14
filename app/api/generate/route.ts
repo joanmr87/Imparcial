@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server"
+import { authorizeInternalRequest } from "@/lib/internal-auth"
 import { generatePipelineRun } from "@/lib/pipeline"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 export async function POST(request: Request) {
+  const auth = authorizeInternalRequest(request)
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
+  }
+
   try {
     const body = await request.json().catch(() => ({})) as {
       sourceIds?: string[]
@@ -17,7 +23,7 @@ export async function POST(request: Request) {
     const result = await generatePipelineRun({
       sourceIds: body.sourceIds,
       minSources: body.minSources ?? 2,
-      limit: body.limit ?? 12,
+      limit: Math.max(1, Math.min(body.limit ?? 12, 12)),
       generateArticles: body.generateArticles ?? true,
       persist: body.persist ?? false,
     })

@@ -2,6 +2,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { NextResponse } from "next/server"
 import { getEditorialSchemaStatus, getPipelineSchemaStatus } from "@/lib/supabase-admin"
+import { authorizeInternalRequest } from "@/lib/internal-auth"
 
 async function readMigrationSql() {
   const scriptsDir = path.join(process.cwd(), "scripts")
@@ -19,7 +20,12 @@ async function readMigrationSql() {
   return contents.join("\n\n")
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = authorizeInternalRequest(request)
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
+  }
+
   try {
     const [editorialSchema, pipelineSchema, sql] = await Promise.all([
       getEditorialSchemaStatus(),
@@ -48,7 +54,12 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  const auth = authorizeInternalRequest(request)
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
+  }
+
   try {
     const [editorialSchema, pipelineSchema, sql] = await Promise.all([
       getEditorialSchemaStatus(),
